@@ -4,11 +4,37 @@
 # See https://juju.is/docs/config for guidance.
 
 options:
-  # An example config option to customise the log level of the workload
-  log-level:
+  rpc-endpoint-api-url:
     description: |
-      Configures the log level of gunicorn. 
+      The URL to the Flask app serving the RPC endpoint database.
+    default: http://localhost:5000
+    type: string
+  rpc-endpoint-cache-age:
+    description: |
+      The maximum length in seconds to use the cached RPC endpoint values before attempting an update.
+    default: 60
+    type: int
+  request-interval:
+    description: |
+      The organization name used when setting up InfluxDB.
+    default: 10
+    type: int
 
-      Acceptable values are: "info", "debug", "warning", "error" and "critical"
-    default: "info"
+  # InfluxDB settings
+  influxdb-url:
+    description: |
+      The URL to the InfluxDB database where blockchain request results will be stored.
+    default: http://localhost:8086
+    type: string
+  influxdb-org:
+    description: |
+      The organization name used when setting up InfluxDB.
+      Note: required setting when deploying the charm!
+    default: ""
+    type: string
+  influxdb-bucket:
+    description: |
+      The bucket name used when setting up InfluxDB.
+      Note: required setting when deploying the charm!
+    default: ""
     type: string

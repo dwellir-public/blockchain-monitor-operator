@@ -10,17 +10,20 @@ Use links instead.
 
 # blockchain-monitor
 
-Charmhub package name: operator-template
+Charmhub package name: blockchain-monitor
 More information: https://charmhub.io/blockchain-monitor
 
-Describe your charm in one or two sentences.
+The blockchain-monitor charm sets up an InfluxDB database for blockchain monitoring data, as well as a service running a script to populate that database. The main focus is to monitor block height and request latency but this could be extended in future updates.
+
+## Setup
+
+TODO: describe what the charm sets up
+
+## Usage
+
+TODO: describe how to configure, intended way of using
 
 ## Other resources
 
-<!-- If your charm is documented somewhere else other than Charmhub, provide a link separately. -->
-
-- [Read more](https://example.com)
-
-- [Contributing](CONTRIBUTING.md) <!-- or link to other contribution documentation -->
-
-- See the [Juju SDK documentation](https://juju.is/docs/sdk) for more information about developing and improving charms.
+- The [endpointdb](https://github.com/dwellir-public/endpointdb) repo, which sets up the database this monitor uses to find endpoints.
+- There exists an [InfluxDB charm on CharmHub](https://charmhub.io/influxdb) but we're currently opting to set up a local database instead, as the one on CharmHub only supports InfluxDB v1.
