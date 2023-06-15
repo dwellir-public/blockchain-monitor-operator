@@ -5,7 +5,7 @@ Documentation=https://github.com/dwellir-public/blockchain-monitor
 
 [Service]
 Type=simple
-ExecStart=/usr/bin/python3 /home/ubuntu/monitor-blockchains.py
+ExecStart=/usr/bin/python3 -u /home/ubuntu/monitor-blockchains.py
 WorkingDirectory=/home/ubuntu
 Restart=always
 RestartSec=120
