@@ -6,8 +6,13 @@
 
 
 import logging
+import shutil
 
 import ops
+from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus, WaitingStatus
+import util
+import constants as c
+
 
 logger = logging.getLogger(__name__)
 
@@ -26,15 +31,35 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle changed configuration."""
+        # TODO: setup config.json based on config here
 
-    def _on_install(self, event: ops.InstallEvent):
+    def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
+        self.unit.status = MaintenanceStatus('Installing apt dependencies')
+        util.install_apt_dependencies(self.charm_dir)
+        self.unit.status = MaintenanceStatus('Setting up InfluxDB')
+        try:
+            util.setup_influxdb(bucket=self.config.get('influxdb-bucket'),
+                                org=self.config.get('influxdb-org'),
+                                username=self.config.get('influxdb-username'),
+                                password=self.config.get('influxdb-password'),
+                                retention=self.config.get('influxdb-retention'))
+        except ValueError as e:
+            self.unit.status = BlockedStatus(str(e))
+            event.defer()
+            return
+        self.unit.status = MaintenanceStatus('Installing script and service')
+        shutil.copy(self.charm_dir / 'templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
+        util.install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
+        self.unit.status = ActiveStatus('Installation complete')
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
+        util.start_service(c.SERVICE_NAME)
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
+        util.stop_service(c.SERVICE_NAME)
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
         """Handle status update."""

@@ -1,0 +1,14 @@
+[Unit]
+Description=blockchain monitor
+After=network.target
+Documentation=https://github.com/dwellir-public/blockchain-monitor
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 /home/ubuntu/monitor-blockchains.py
+WorkingDirectory=/home/ubuntu
+Restart=always
+RestartSec=120
+
+[Install]
+WantedBy=multi-user.target

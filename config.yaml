@@ -26,15 +26,30 @@ options:
       The URL to the InfluxDB database where blockchain request results will be stored.
     default: http://localhost:8086
     type: string
-  influxdb-org:
-    description: |
-      The organization name used when setting up InfluxDB.
-      Note: required setting when deploying the charm!
-    default: ""
-    type: string
   influxdb-bucket:
     description: |
       The bucket name used when setting up InfluxDB.
-      Note: required setting when deploying the charm!
+      Note: supplying this is required when deploying the charm!
     default: ""
+    type: string
+  influxdb-org:
+    description: |
+      The organization name used when setting up InfluxDB.
+      Note: supplying this is required when deploying the charm!
+    default: ""
+    type: string
+  influxdb-username:
+    description: |
+      The username used when setting up InfluxDB.
+    default: admin
+    type: string
+  influxdb-password:
+    description: |
+      The password used when setting up InfluxDB.
+    default: password
+    type: string
+  influxdb-retention:
+    description: |
+      The retention period for data in the database. Valid units: minutes (m), hours (h), days (d), and weeks (w).
+    default: 30d
     type: string
