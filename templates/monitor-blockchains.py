@@ -62,6 +62,10 @@ def main():
         logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
         sys.exit(1)
 
+    if not test_connection(config['RPC_FLASK_API']):
+        logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
+        sys.exit(1)
+
     while True:
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], RPC_CACHE_MAX_AGE)
         all_results = loop.run_until_complete(fetch_results(all_endpoints))  # TODO: update how to return a none result?
@@ -204,6 +208,16 @@ def test_influxdb_connection(url: str, token: str, org: str) -> bool:
     except Exception as e:
         print(e)
         return False
+
+
+def test_connection(url: str) -> bool:
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return True
+        return False
+    except requests.exceptions.RequestException as e:
+        logger.warning('Connection to URL failed: %s', str(e))
 
 
 async def send_request(api_url: str, api_class: str):

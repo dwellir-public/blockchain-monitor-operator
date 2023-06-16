@@ -31,21 +31,21 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle changed configuration."""
-        monitoring_config = {}
-        monitoring_config['INFLUXDB_BUCKET'] = self.config.get('influxdb-bucket')
-        monitoring_config['INFLUXDB_ORG'] = self.config.get('influxdb-org')
-        monitoring_config['INFLUXDB_URL'] = self.config.get('influxdb-url')
         try:
-            monitoring_config['INFLUXDB_TOKEN'] = util.get_influxdb_token()
+            util.update_monitor_config_file(self.config)
         except FileNotFoundError as e:
             self.unit.status = BlockedStatus(str(e))
             event.defer()
             return
+        # TODO: handle configs influxdb-username, -password, -retention or leave them for manual adjustments only?
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
         self.unit.status = MaintenanceStatus('Installing apt dependencies')
-        util.install_apt_dependencies(self.charm_dir)
+        # TODO: apt-key used in script is deprecated, use gpg instead!
+        util.install_apt_dependencies(script_path=self.charm_dir / 'templates/add-influx-apt.sh')
+        self.unit.status = MaintenanceStatus('Installing Python dependencies')
+        util.install_python_dependencies(self.charm_dir / 'templates/requirements_monitor.txt')
         self.unit.status = MaintenanceStatus('Setting up InfluxDB')
         try:
             util.setup_influxdb(bucket=self.config.get('influxdb-bucket'),
@@ -58,9 +58,12 @@ class BlockchainMonitorCharm(ops.CharmBase):
             event.defer()
             return
         self.unit.status = MaintenanceStatus('Installing script and service')
+        self.install_files()
+        self.unit.status = ActiveStatus('Installation complete')
+
+    def install_files(self):
         shutil.copy(self.charm_dir / 'templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
         util.install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
-        self.unit.status = ActiveStatus('Installation complete')
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
@@ -72,9 +75,13 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
         """Handle status update."""
+        # TODO: add check on service status
 
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
+        util.stop_service(c.SERVICE_NAME)
+        self.install_files()
+        util.start_service(c.SERVICE_NAME)
 
 
 if __name__ == "__main__":  # pragma: nocover

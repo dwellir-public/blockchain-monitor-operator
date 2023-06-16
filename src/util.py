@@ -9,12 +9,15 @@ from ops.model import ConfigData
 import constants as c
 
 
-def install_apt_dependencies(charm_dir: Path) -> None:
-    # TODO: apt-key used in script is deprecated, use gpg instead!
-    script_path = charm_dir / 'templates/add-influx-apt.sh'
+def install_apt_dependencies(script_path: Path) -> None:
     sp.run([script_path], check=True)
     sp.run(['apt-get', 'update'], check=True)
-    sp.run(['apt', 'install', 'influxdb2', '-y'], check=True)
+    sp.run(['apt', 'install', 'influxdb2', 'python3-pip', '-y'], check=True)
+
+
+def install_python_dependencies(requirements_file: Path) -> None:
+    # Specifically point at the system's Python, to install modules on the system level
+    sp.run(['sudo', 'pip3', 'install', '-r', requirements_file], check=True)
 
 
 def setup_influxdb(bucket: str, org: str, username: str, password: str, retention: str) -> None:
@@ -51,7 +54,8 @@ def update_monitor_config_file(config: ConfigData) -> None:
     monitoring_config['REQUEST_INTERVAL'] = config.get('request-interval')
     monitoring_config['RPC_FLASK_API'] = config.get('rpc-endpoint-api-url')
     monitoring_config['RPC_CACHE_MAX_AGE'] = config.get('rpc-endpoint-cache-age')
-    json.dump(monitoring_config, c.MONITOR_CONFIG_PATH)
+    with open(c. MONITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
+        json.dump(monitoring_config, f)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:
