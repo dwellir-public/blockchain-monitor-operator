@@ -3,7 +3,9 @@
 from pathlib import Path
 import subprocess as sp
 import shutil
+import json
 
+from ops.model import ConfigData
 import constants as c
 
 
@@ -29,6 +31,27 @@ def setup_influxdb(bucket: str, org: str, username: str, password: str, retentio
     sp.run(setup_command, check=True)
     sp.run(f'influx auth create --write-buckets --read-buckets --json > {c.INFLUXDB_TOKEN_PATH}', shell=True, check=True)
     sp.run(['influx', 'bucket', 'create', '-n', 'block_heights', '-r', retention], check=True)
+
+
+def get_influxdb_token() -> str:
+    if not c.INFLUXDB_TOKEN_PATH.exists():
+        raise FileNotFoundError("Cannot find InfluxDB token file")
+    with open(c.INFLUXDB_TOKEN_PATH, 'r', encoding='utf-8') as f:
+        token_file = json.load(f)
+        token = token_file.get('token', '')
+        return token
+
+
+def update_monitor_config_file(config: ConfigData) -> None:
+    monitoring_config = {}
+    monitoring_config['INFLUXDB_BUCKET'] = config.get('influxdb-bucket')
+    monitoring_config['INFLUXDB_ORG'] = config.get('influxdb-org')
+    monitoring_config['INFLUXDB_URL'] = config.get('influxdb-url')
+    monitoring_config['INFLUXDB_TOKEN'] = get_influxdb_token()
+    monitoring_config['REQUEST_INTERVAL'] = config.get('request-interval')
+    monitoring_config['RPC_FLASK_API'] = config.get('rpc-endpoint-api-url')
+    monitoring_config['RPC_CACHE_MAX_AGE'] = config.get('rpc-endpoint-cache-age')
+    json.dump(monitoring_config, c.MONITOR_CONFIG_PATH)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:

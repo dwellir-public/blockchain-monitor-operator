@@ -43,8 +43,8 @@ def main():
         'org': config['INFLUXDB_ORG'],
         'bucket': config['INFLUXDB_BUCKET']
     }
-    cache_max_age = config.get('CACHE_MAX_AGE', 60)  # TODO: keep default value, yes or no?
-    poll_interval = config.get('POLL_INTERVAL', 10)  # TODO: keep default value, yes or no?
+    RPC_CACHE_MAX_AGE = config.get('RPC_CACHE_MAX_AGE', 60)  # TODO: keep default value, yes or no?
+    request_interval = config.get('REQUEST_INTERVAL', 10)  # TODO: keep default value, yes or no?
 
     # Set up event loop for asynchronous fetch calls
     with warnings.catch_warnings(record=True) as warn:
@@ -63,7 +63,7 @@ def main():
         sys.exit(1)
 
     while True:
-        all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
+        all_endpoints = load_endpoints(config['RPC_FLASK_API'], RPC_CACHE_MAX_AGE)
         all_results = loop.run_until_complete(fetch_results(all_endpoints))  # TODO: update how to return a none result?
 
         # Create block_heights dict
@@ -113,7 +113,7 @@ def main():
 
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
         # Sleep between making requests to avoid triggering rate limits.
-        time.sleep(poll_interval)  # TODO: consider replacing with the schedule package
+        time.sleep(request_interval)  # TODO: consider replacing with the schedule package
 
 
 def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list) -> None:

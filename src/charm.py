@@ -31,7 +31,16 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle changed configuration."""
-        # TODO: setup config.json based on config here
+        monitoring_config = {}
+        monitoring_config['INFLUXDB_BUCKET'] = self.config.get('influxdb-bucket')
+        monitoring_config['INFLUXDB_ORG'] = self.config.get('influxdb-org')
+        monitoring_config['INFLUXDB_URL'] = self.config.get('influxdb-url')
+        try:
+            monitoring_config['INFLUXDB_TOKEN'] = util.get_influxdb_token()
+        except FileNotFoundError as e:
+            self.unit.status = BlockedStatus(str(e))
+            event.defer()
+            return
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
