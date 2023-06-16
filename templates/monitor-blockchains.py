@@ -62,7 +62,7 @@ def main():
         logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
         sys.exit(1)
 
-    if not test_connection(config['RPC_FLASK_API']):
+    if not test_connection(config['RPC_FLASK_API'] + '/all/chains'):
         logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
         sys.exit(1)
 

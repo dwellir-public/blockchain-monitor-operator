@@ -33,7 +33,7 @@ def setup_influxdb(bucket: str, org: str, username: str, password: str, retentio
     setup_command += ['--force']
     sp.run(setup_command, check=True)
     sp.run(f'influx auth create --write-buckets --read-buckets --json > {c.INFLUXDB_TOKEN_PATH}', shell=True, check=True)
-    sp.run(['influx', 'bucket', 'create', '-n', 'block_heights', '-r', retention], check=True)
+    sp.run(['influx', 'bucket', 'create', '-n', bucket, '-r', retention], check=True)
 
 
 def get_influxdb_token() -> str:
