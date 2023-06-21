@@ -43,8 +43,8 @@ def main():
         'org': config['INFLUXDB_ORG'],
         'bucket': config['INFLUXDB_BUCKET']
     }
-    RPC_CACHE_MAX_AGE = config.get('RPC_CACHE_MAX_AGE', 60)  # TODO: keep default value, yes or no?
-    request_interval = config.get('REQUEST_INTERVAL', 10)  # TODO: keep default value, yes or no?
+    cache_max_age = config['RPC_CACHE_MAX_AGE']
+    request_interval = config['REQUEST_INTERVAL']
 
     # Set up event loop for asynchronous fetch calls
     with warnings.catch_warnings(record=True) as warn:
@@ -67,7 +67,7 @@ def main():
         sys.exit(1)
 
     while True:
-        all_endpoints = load_endpoints(config['RPC_FLASK_API'], RPC_CACHE_MAX_AGE)
+        all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         all_results = loop.run_until_complete(fetch_results(all_endpoints))  # TODO: update how to return a none result?
 
         # Create block_heights dict
@@ -236,12 +236,12 @@ async def fetch_results(all_url_api_tuples: list):
     loop = asyncio.get_event_loop()  # Reuse the current event loop
     tasks = []
     for _, url, api_class in all_url_api_tuples:
-        tasks.append(loop.create_task(send_request(url, api_class)))
+        if is_valid_url(url):
+            tasks.append(loop.create_task(send_request(url, api_class)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return results
 
 
-# TODO: remove or make use of
 def is_valid_url(url):
     valid_schemes = ['ws', 'wss', 'http', 'https']
     parsed_url = urlparse(url)

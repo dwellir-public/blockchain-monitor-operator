@@ -37,7 +37,6 @@ class BlockchainMonitorCharm(ops.CharmBase):
             self.unit.status = BlockedStatus(str(e))
             event.defer()
             return
-        # TODO: handle configs influxdb-username, -password, -retention or leave them for manual adjustments only?
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
@@ -75,7 +74,10 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
         """Handle status update."""
-        # TODO: add check on service status
+        if not util.service_running(c.SERVICE_NAME):
+            self.unit.status = WaitingStatus("Service not yet started")
+            return
+        self.unit.status = ActiveStatus("Service running")
 
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""

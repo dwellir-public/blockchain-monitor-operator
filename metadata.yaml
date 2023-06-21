@@ -19,5 +19,5 @@ description: |
 storage:
   data:
     type: filesystem
-    description: Storage for the metrics database.
-    location: /home/ubuntu/influxdb # TODO: adjust this according to influx configuration
+    description: Storage for the InfluxDB database.
+    location: /var/lib/influxdb

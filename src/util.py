@@ -70,3 +70,8 @@ def start_service(service_name: str) -> None:
 
 def stop_service(service_name: str) -> None:
     sp.run(['systemctl', 'stop', f'{service_name.lower()}.service'], check=False)
+
+
+def service_running(service_name: str) -> bool:
+    service_status = sp.run(['service', f'{service_name.lower()}', 'status'], stdout=sp.PIPE, check=False).returncode
+    return service_status == 0

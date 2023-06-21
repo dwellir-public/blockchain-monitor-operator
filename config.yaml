@@ -38,6 +38,7 @@ options:
       Note: supplying this is required when deploying the charm!
     default: ""
     type: string
+  # Only used at deploy, if changes are needed later they will have to be done manually
   influxdb-username:
     description: |
       The username used when setting up InfluxDB.
