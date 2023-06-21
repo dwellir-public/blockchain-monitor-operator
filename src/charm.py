@@ -29,6 +29,8 @@ class BlockchainMonitorCharm(ops.CharmBase):
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
 
+        self.framework.observe(self.on.get_influxdb_info_action, self._get_influxdb_info_action)
+
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle changed configuration."""
         try:
@@ -84,6 +86,16 @@ class BlockchainMonitorCharm(ops.CharmBase):
         util.stop_service(c.SERVICE_NAME)
         self.install_files()
         util.start_service(c.SERVICE_NAME)
+
+    def _get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
+        """Gather and return info on the monitor's InfluxDB database."""
+        event.set_results(results={'bucket': self.config.get('influxdb-bucket')})
+        event.set_results(results={'org': self.config.get('influxdb-org')})
+        try:
+            event.set_results(results={'token': util.get_influxdb_token()})
+        except FileNotFoundError as e:
+            logger.warning(e)
+            event.fail("Could not read InfluxDB token from file")
 
 
 if __name__ == "__main__":  # pragma: nocover

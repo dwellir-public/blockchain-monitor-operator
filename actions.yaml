@@ -1,0 +1,2 @@
+get-influxdb-info:
+  description: Get the InfluxDB info needed to access it, e.g. as a data source in Grafana
