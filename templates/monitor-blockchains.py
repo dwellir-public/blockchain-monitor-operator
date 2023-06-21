@@ -261,10 +261,10 @@ async def get_aptos(api_url):
             http_code = resp.status
             exit_code = 0
         except aiohttp.ClientError as e:
-            print(f"Error in get_aptos for url {api_url}", response, e)
+            print(f"aiohttp.ClientError in get_aptos for url {api_url}", response, e)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
         except Exception as ee:
-            print(f"Error in get_aptos for url {api_url}", response, ee)
+            print(f"{ee.__class__.__name__} in get_aptos for url {api_url}", response, ee)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
 
         info = {
@@ -290,10 +290,10 @@ async def get_substrate(api_url):
             http_code = resp.status
             exit_code = 0
         except aiohttp.ClientError as e:
-            print(f"Error in get_substrate for url {api_url}", response, e)
+            print(f"aiohttp.ClientError in get_substrate for url {api_url}", response, e)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
         except Exception as ee:
-            print(f"Error in get_substrate for url {api_url}", response, ee)
+            print(f"{ee.__class__.__name__} in get_substrate for url {api_url}", response, ee)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
 
         info = {
@@ -311,7 +311,7 @@ async def get_ethereum(api_url, chain_id=1):
         try:
             start_time = time.monotonic()
             response = None
-            async with session.post(api_url, json={'jsonrpc': '2.0', 'method': 'eth_blockNumber', 'params': [], 'id': str({chain_id})}) as resp:
+            async with session.post(api_url, json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": str({chain_id})}) as resp:
                 end_time = time.monotonic()
                 response = await resp.json()
             highest_block = int(response['result'], 16)
@@ -319,10 +319,10 @@ async def get_ethereum(api_url, chain_id=1):
             http_code = resp.status
             exit_code = 0
         except aiohttp.ClientError as e:
-            print(f"Error in get_ethereum for url {api_url}", response, e)
+            print(f"aiohttp.ClientError in get_ethereum for url {api_url}", response, e)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
         except Exception as ee:
-            print(f"Error in get_ethereum for url {api_url}", response, ee)
+            print(f"{ee.__class__.__name__} in get_ethereum for url {api_url}", response, ee)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
 
         info = {
