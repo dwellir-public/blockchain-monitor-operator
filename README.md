@@ -27,3 +27,15 @@ TODO: describe how to configure, intended way of using
 
 - The [endpointdb](https://github.com/dwellir-public/endpointdb) repo, which sets up the database this monitor uses to find endpoints.
 - There exists an [InfluxDB charm on CharmHub](https://charmhub.io/influxdb) but we're currently opting to set up a local database instead, as the one on CharmHub only supports InfluxDB v1.
+
+## Grafana
+
+An intention of this application is to gain a good monitoring overview through Grafana:
+
+- Enter the Grafana web GUI.
+- Go to the 'Add datasource' section.
+- Select InfluxDB as the datasource type.
+- Set Flux as the query language.
+- Set the host IP and port (default port is 8086).
+- Add the InfluxDB details; organizaiton, token (the one generated when setting up the database) and data bucket. These can easily be retrieved with the `get-influxdb-info` action.
+- Import the dashboard from this repo.
