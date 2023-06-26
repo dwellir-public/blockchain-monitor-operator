@@ -9,6 +9,8 @@ ExecStart=/usr/bin/python3 -u /home/ubuntu/monitor-blockchains.py
 WorkingDirectory=/home/ubuntu
 Restart=always
 RestartSec=120
+StandardInput=null
+StandardOutput=null
 
 [Install]
 WantedBy=multi-user.target
