@@ -97,6 +97,9 @@ class BlockchainMonitorCharm(ops.CharmBase):
             logger.warning(e)
             event.fail("Could not read InfluxDB token from file")
 
+# TODO: add action to restart InfluxDB service (and bc-monitor while at it)
+# TODO: add action to check endpointdb API status (perhaps???)
+
 
 if __name__ == "__main__":  # pragma: nocover
     ops.main(BlockchainMonitorCharm)
