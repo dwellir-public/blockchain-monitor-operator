@@ -15,9 +15,3 @@ description: |
   For any entity running nodes on a blockchain network, keeping those nodes up to par is important. Among the most important metrics are block height and latency, hence a tool like this is essential to see the health of these metrics on the nodes one is operating.
 
   This charm should be useful for anyone needing to keep check on one or several blockchain nodes.
-
-storage:
-  data:
-    type: filesystem
-    description: Storage for the InfluxDB database.
-    location: /var/lib/influxdb
