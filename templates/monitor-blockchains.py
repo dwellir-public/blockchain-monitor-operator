@@ -108,7 +108,8 @@ def main():
                             data=results,
                             block_height_diff=block_height_diffs[endpoint[0]][endpoint[1]],
                             timestamp=timestamp)
-                        logger.info("Writing to influx %s", brp)
+                        # TODO: re-evaluate how sustainable logging might be solved for this app (this produces too many logs)
+                        # logger.info("Writing to influx %s", brp)
                         records.append(brp)
                 except Exception as e:
                     logger.error("Error while accessing results for %s: %s %s", endpoint, results, str(e))
