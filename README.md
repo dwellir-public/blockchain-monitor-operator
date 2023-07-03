@@ -17,7 +17,15 @@ The blockchain-monitor charm sets up an InfluxDB database for blockchain monitor
 
 ## Setup
 
-TODO: describe what the charm sets up
+During the install process the charm automatically sets up a number of things according to the given config. The `influxdb-bucket` and `influxdb-org` settings are required as they don't have default values but otherwise it will probably be fine to use the default value. The configurations for `URL`:s can be changed after the fact in case those apps are deployed separately.
+
+Example deployment command:
+
+    juju deploy ./blockchain-monitor_ubuntu-22.04-amd64.charm --config influxdb-bucket=block_heights --config influxdb-org=dwellir --constraints instance-type=t3.large
+
+The `--constraints` setting is for an AWS deployment.
+
+The blockchain-monitor charm also needs access to an instance of the RPC endpoint database developed in parallel to this application to actually get a list of blockchain node endpoints to monitor. Even though `localhost` is the default configuration for that setting, this charm does not set this up automatically. Please refer to the [endpointdb readme](https://github.com/dwellir-public/endpointdb) for further instructions.
 
 ## Usage
 
