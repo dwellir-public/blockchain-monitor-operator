@@ -25,18 +25,20 @@ Example deployment command:
 
 The `--constraints` setting is for an AWS deployment.
 
-The blockchain-monitor charm also needs access to an instance of the RPC endpoint database developed in parallel to this application to actually get a list of blockchain node endpoints to monitor. Even though `localhost` is the default configuration for that setting, this charm does not set this up automatically. Please refer to the [endpointdb readme](https://github.com/dwellir-public/endpointdb) for further instructions.
+The blockchain-monitor charm also needs access to an instance of the RPC endpoint database developed in parallel to this application to actually get a list of blockchain node endpoints to monitor. Even though `localhost` is the default configuration for the `rpc-endpoint-api-url` option, this charm does not set up the RPC endpoint database. Please refer to the [endpointdb readme](https://github.com/dwellir-public/endpointdb) for instructions on how to do that.
 
 ## Usage
 
-TODO: describe how to configure, intended way of using
+When the charm has been deployed, and has access to an `endpointdb` RPC database, the main usage will be through Grafana, which is described in short in the paragraph below.
 
-## Other resources
+You might also want to, every now and then, check the health of the RPC endpoints currently in use. Since we at the moment don't have any alert structure set up to do this, the easiest way would be to check the logs of the running `blockchain-monitor` container:
 
-- The [endpointdb](https://github.com/dwellir-public/endpointdb) repo, which sets up the database this monitor uses to find endpoints.
-- There exists an [InfluxDB charm on CharmHub](https://charmhub.io/influxdb) but we're currently opting to set up a local database instead, as the one on CharmHub only supports InfluxDB v1.
+    juju switch <the controller/model that holds the deployment>
+    juju ssh <blockchain-monitor machine> -- journalctl -f -u bc-monitor
 
-## Grafana
+In the journal you'll find warnings and errors that the service encounters when attempting to make requests to the endpoints. For any endpoint giving off an error or warning you might want to consider to replace it with another one for that particular chain. Regarding how to do that, please refer to the `endpointdb` readme.
+
+### Grafana
 
 An intention of this application is to gain a good monitoring overview through Grafana:
 
@@ -47,3 +49,8 @@ An intention of this application is to gain a good monitoring overview through G
 - Set the host IP and port (default port is 8086).
 - Add the InfluxDB details; organizaiton, token (the one generated when setting up the database) and data bucket. These can easily be retrieved with the `get-influxdb-info` action.
 - Import the dashboard from this repo.
+
+## Other resources
+
+- The [endpointdb](https://github.com/dwellir-public/endpointdb) repo, which sets up the database this monitor uses to find RPC endpoints.
+- There exists an [InfluxDB charm on CharmHub](https://charmhub.io/influxdb) but we're currently opting to set up a local database instead, as the one on CharmHub only supports InfluxDB v1.
