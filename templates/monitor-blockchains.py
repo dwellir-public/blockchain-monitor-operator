@@ -121,14 +121,24 @@ def main():
         time.sleep(request_interval)  # TODO: consider replacing with the schedule package
 
 
-def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list) -> None:
+def test_influxdb_connection(url: str, token: str, org: str) -> bool:
+    """Test the connection to the database."""
+    client = InfluxDBClient(url=url, token=token, org=org)
     try:
-        client = InfluxDBClient(url=url, token=token, org=org)
-        write_api = client.write_api(write_options=SYNCHRONOUS)
-        write_api.write(bucket=bucket, record=records)
+        return client.ping()
     except Exception as e:
-        logger.critical("Failed writing to influx. %s",  str(e))
-        sys.exit(1)
+        print(e)
+        return False
+
+
+def test_connection(url: str) -> bool:
+    try:
+        response = requests.get(url, timeout=10)
+        if response.status_code == 200:
+            return True
+        return False
+    except requests.exceptions.RequestException as e:
+        logger.warning('Connection to URL failed: %s', str(e))
 
 
 def load_endpoints(rpc_flask_api: str, cache_refresh_interval: int) -> list:
@@ -201,42 +211,12 @@ def block_height_request_point(chain: str, url: str, data: dict, block_height_di
         .time(timestamp)
 
 
-def test_influxdb_connection(url: str, token: str, org: str) -> bool:
-    """Test the connection to the database."""
-    client = InfluxDBClient(url=url, token=token, org=org)
-    try:
-        return client.ping()
-    except Exception as e:
-        print(e)
-        return False
-
-
-def test_connection(url: str) -> bool:
-    try:
-        response = requests.get(url, timeout=10)
-        if response.status_code == 200:
-            return True
-        return False
-    except requests.exceptions.RequestException as e:
-        logger.warning('Connection to URL failed: %s', str(e))
-
-
-async def send_request(api_url: str, api_class: str):
-    if api_class == 'substrate':
-        info = await get_substrate(api_url)
-    elif api_class == 'ethereum':
-        info = await get_ethereum(api_url)
-    else:
-        raise ValueError('Invalid api_class:', api_class)
-    return info
-
-
 async def fetch_results(all_url_api_tuples: list):
     loop = asyncio.get_event_loop()  # Reuse the current event loop
     tasks = []
     for _, url, api_class in all_url_api_tuples:
         if is_valid_url(url):
-            tasks.append(loop.create_task(send_request(url, api_class)))
+            tasks.append(loop.create_task(request(url, api_class)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return results
 
@@ -247,62 +227,73 @@ def is_valid_url(url):
     return parsed_url.scheme in valid_schemes
 
 
-async def get_substrate(api_url):
+def get_json_rpc_method(api_class: str) -> str:
+    if api_class == 'substrate':
+        return "chain_getHeader"
+    if api_class == 'ethereum':
+        return "eth_blockNumber"
+    return ""
+
+
+def get_highest_block(api_class: str, response):
+    if api_class == 'substrate':
+        return int(response['result']['number'], 16)
+    if api_class == 'ethereum':
+        return int(response['result'], 16)
+    return None
+
+
+async def request(api_url: str, api_class: str) -> dict:
+    method = get_json_rpc_method(api_class)
+    if not method:
+        raise ValueError('Invalid api_class:', api_class)
     async with aiohttp.ClientSession() as session:
         try:
             start_time = time.monotonic()
-            response = None
-            async with session.post(api_url, json={"jsonrpc": "2.0", "id": 1, "method": "chain_getHeader", "params": []}) as resp:
-                end_time = time.monotonic()
-                response = await resp.json()
-            highest_block = int(response['result']['number'], 16)
+            if "http" in api_url:
+                async with session.post(api_url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": []}) as resp:
+                    end_time = time.monotonic()
+                    response = await resp.json()
+                    http_code = resp.status
+            elif "ws" in api_url:
+                payload = {
+                    "jsonrpc": "2.0",
+                    "method": "chain_getHeader",
+                    "params": [],
+                    "id": 1
+                }
+                async with session.ws_connect(api_url) as ws:
+                    end_time = time.monotonic()
+                    await ws.send_json(payload)
+                    resp = await ws.receive()
+                    response = json.loads(resp.data)
+                http_code = 0
+            highest_block = get_highest_block(api_class, response)
             latency = (end_time - start_time)
-            http_code = resp.status
             exit_code = 0
         except aiohttp.ClientError as e:
-            print(f"aiohttp.ClientError in get_substrate for url {api_url}", response, e)
+            print(f"aiohttp.ClientError in request for url {api_url} using {api_class}:", response, e)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
         except Exception as ee:
-            print(f"{ee.__class__.__name__} in get_substrate for url {api_url}", response, ee)
+            print(f"{ee.__class__.__name__} in request for url {api_url} using {api_class}:", response, ee)
             return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
 
-        info = {
+        return {
             'http_code': http_code,
             'time_total': latency,
             'exit_code': exit_code,
             'latest_block_height': highest_block
         }
 
-        return info
 
-
-async def get_ethereum(api_url, chain_id=1):
-    async with aiohttp.ClientSession() as session:
-        try:
-            start_time = time.monotonic()
-            response = None
-            async with session.post(api_url, json={"jsonrpc": "2.0", "method": "eth_blockNumber", "params": [], "id": str({chain_id})}) as resp:
-                end_time = time.monotonic()
-                response = await resp.json()
-            highest_block = int(response['result'], 16)
-            latency = (end_time - start_time)
-            http_code = resp.status
-            exit_code = 0
-        except aiohttp.ClientError as e:
-            print(f"aiohttp.ClientError in get_ethereum for url {api_url}", response, e)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
-        except Exception as ee:
-            print(f"{ee.__class__.__name__} in get_ethereum for url {api_url}", response, ee)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
-
-        info = {
-            'http_code': http_code,
-            'time_total': latency,
-            'exit_code': exit_code,
-            'latest_block_height': highest_block
-        }
-
-        return info
+def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list) -> None:
+    try:
+        client = InfluxDBClient(url=url, token=token, org=org)
+        write_api = client.write_api(write_options=SYNCHRONOUS)
+        write_api.write(bucket=bucket, record=records)
+    except Exception as e:
+        logger.critical("Failed writing to influx. %s",  str(e))
+        sys.exit(1)
 
 
 class ColoredFormatter(logging.Formatter):
