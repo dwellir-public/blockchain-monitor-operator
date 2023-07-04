@@ -222,9 +222,7 @@ def test_connection(url: str) -> bool:
 
 
 async def send_request(api_url: str, api_class: str):
-    if api_class == 'aptos':
-        info = await get_aptos(api_url)
-    elif api_class == 'substrate':
+    if api_class == 'substrate':
         info = await get_substrate(api_url)
     elif api_class == 'ethereum':
         info = await get_ethereum(api_url)
@@ -247,35 +245,6 @@ def is_valid_url(url):
     valid_schemes = ['ws', 'wss', 'http', 'https']
     parsed_url = urlparse(url)
     return parsed_url.scheme in valid_schemes
-
-
-async def get_aptos(api_url):
-    async with aiohttp.ClientSession() as session:
-        try:
-            start_time = time.monotonic()
-            response = None
-            async with session.get(api_url) as resp:
-                end_time = time.monotonic()
-                response = await resp.json()
-            highest_block = int(response['block_height'])
-            latency = (end_time - start_time)
-            http_code = resp.status
-            exit_code = 0
-        except aiohttp.ClientError as e:
-            print(f"aiohttp.ClientError in get_aptos for url {api_url}", response, e)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
-        except Exception as ee:
-            print(f"{ee.__class__.__name__} in get_aptos for url {api_url}", response, ee)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
-
-        info = {
-            'http_code': http_code,
-            'time_total': latency,
-            'exit_code': exit_code,
-            'latest_block_height': highest_block
-        }
-
-        return info
 
 
 async def get_substrate(api_url):
