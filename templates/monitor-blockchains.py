@@ -73,13 +73,16 @@ def main():
         # Create block_heights dict
         block_heights = {}
         for endpoint, results in zip(all_endpoints, all_results):
-            if results and results.get('latest_block_height'):
-                chain = endpoint[0]
-                if chain not in block_heights.keys():
-                    block_heights[chain] = []
-                block_heights[chain].append((endpoint[1], int(results.get('latest_block_height', -1))))
-            else:
-                logger.warning("Results of endpoint %s not accessible.", endpoint[1])
+            try:
+                if results and results.get('latest_block_height'):
+                    chain = endpoint[0]
+                    if chain not in block_heights.keys():
+                        block_heights[chain] = []
+                    block_heights[chain].append((endpoint[1], int(results.get('latest_block_height', -1))))
+                else:
+                    logger.warning("Results of endpoint %s not accessible.", endpoint[1])
+            except (AttributeError, UnboundLocalError) as e:
+                logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
 
         # Calculate block_height diffs and append points
         block_height_diffs = {}
@@ -162,7 +165,7 @@ def load_from_flask_api(rpc_flask_api: str, rpc_flask_get_function: Callable, ca
     else:
         diff = time.time() - last_cache_refresh
         remains = cache_refresh_interval - diff
-        logger.info("%s will be updated in: %s", cache_filename, remains)
+        logger.info("%s will be updated in: %s seconds", cache_filename, round(remains, 1))
         refresh_cache = False
 
     if refresh_cache:
@@ -250,12 +253,13 @@ async def request(api_url: str, api_class: str) -> dict:
     async with aiohttp.ClientSession() as session:
         try:
             start_time = time.monotonic()
-            if "http" in api_url:
+            response = None
+            if 'http' in api_url:
                 async with session.post(api_url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": []}) as resp:
                     end_time = time.monotonic()
                     response = await resp.json()
                     http_code = resp.status
-            elif "ws" in api_url:
+            elif 'ws' in api_url:
                 payload = {
                     "jsonrpc": "2.0",
                     "method": "chain_getHeader",
