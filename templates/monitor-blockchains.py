@@ -84,18 +84,21 @@ def main():
             except (AttributeError, UnboundLocalError) as e:
                 logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
 
-        # Calculate block_height diffs and append points
+        # Calculate block_height diffs and maxes
         block_height_diffs = {}
+        chain_max_heights = {}
         for chain in block_heights:
             rpc_list = block_heights[chain]
             block_height_diffs[chain] = {}
             max_height = max(rpc_list, key=lambda x: x[1])[1]
+            chain_max_heights[chain] = max_height
             for rpc in rpc_list:
                 block_height_diffs[chain][rpc[0]] = max_height - rpc[1]
 
         timestamp = datetime.utcnow()
         records = []
-        # Create block_height_request points
+
+        # Create and append RPC data points
         for endpoint, results in zip(all_endpoints, all_results):
             if results:
                 try:
@@ -118,6 +121,14 @@ def main():
                     logger.error("Error while accessing results for %s: %s %s", endpoint, results, str(e))
             else:
                 logger.warning("Couldn't get information from %s. Skipping.", endpoint)
+
+        # Create and append max block height data points
+        for chain, max_height in chain_max_heights.items():
+            records.append(Point("block_height_request")
+                           .tag("chain", chain)
+                           .tag("url", "Max over time")
+                           .field("block_height", max_height)
+                           .time(timestamp))
 
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
         # Sleep between making requests to avoid triggering rate limits.

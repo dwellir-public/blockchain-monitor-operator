@@ -47,6 +47,7 @@ An intention of this application is to gain a good monitoring overview through G
 - Select InfluxDB as the datasource type.
 - Set Flux as the query language.
 - Set the host IP and port (default port is 8086).
+- Unselect 'Basic auth'.
 - Add the InfluxDB details; organizaiton, token (the one generated when setting up the database) and data bucket. These can easily be retrieved with the `get-influxdb-info` action.
 - Import the dashboard from this repo.
 
