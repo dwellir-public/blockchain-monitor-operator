@@ -104,9 +104,21 @@ def main():
                 try:
                     exit_code = int(results.get('exit_code', -1)) if results.get('exit_code') is not None else None
                     if exit_code is None:
-                        logger.warning("None result for %s. Datapoint will not be added.", endpoint)
+                        logger.warning("None result for %s. Adding exit_code=5 data point.", endpoint)
+                        # TODO: evaluate if the exit_code handling can be improved
+                        records.append(Point("block_height_request")
+                                       .tag("chain", endpoint[0])
+                                       .tag("url", endpoint[1])
+                                       .field("exit_code", 5)
+                                       .time(timestamp))
                     elif exit_code != 0:
-                        logger.warning("Non-zero exit code found for %s. This is an indication that the endpoint isn't healthy.", endpoint)
+                        logger.warning("Non-zero exit code found for %s, an indication that the endpoint isn't healthy.", endpoint)
+                        # TODO: evaluate if the exit_code handling can be improved
+                        records.append(Point("block_height_request")
+                                       .tag("chain", endpoint[0])
+                                       .tag("url", endpoint[1])
+                                       .field("exit_code", exit_code)
+                                       .time(timestamp))
                     else:
                         brp = block_height_request_point(
                             chain=endpoint[0],
@@ -222,6 +234,7 @@ def block_height_request_point(chain: str, url: str, data: dict, block_height_di
         .field("block_height", latest_block_height) \
         .field("block_height_diff", block_height_diff) \
         .field("request_time_total", time_total) \
+        .field("exit_code", 0) \
         .time(timestamp)
 
 
