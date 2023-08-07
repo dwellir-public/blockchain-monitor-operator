@@ -79,8 +79,6 @@ def main():
                     if chain not in block_heights.keys():
                         block_heights[chain] = []
                     block_heights[chain].append((endpoint[1], int(results.get('latest_block_height', -1))))
-                else:
-                    logger.warning("Results of endpoint %s not accessible.", endpoint[1])
             except (AttributeError, UnboundLocalError) as e:
                 logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
 
@@ -274,6 +272,9 @@ async def request(api_url: str, api_class: str) -> dict:
     method = get_json_rpc_method(api_class)
     if not method:
         raise ValueError('Invalid api_class:', api_class)
+    # TODO: possible solution to failing Lagos requests, use or remove
+    # conn = aiohttp.TCPConnector(limit_per_host=5)  # Limit simultaneous connections to reduce connections failures
+    # async with aiohttp.ClientSession(connector=conn) as session:
     async with aiohttp.ClientSession() as session:
         try:
             start_time = time.monotonic()
