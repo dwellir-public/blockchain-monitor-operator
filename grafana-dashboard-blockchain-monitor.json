@@ -71,7 +71,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
-      "description": "Difference between current max height and each individual RPC node",
+      "description": "Difference between each individual RPC node and the current max height of any tracked node. This means that nodes with a difference of zero are furthest ahead.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -186,6 +186,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
+      "description": "Block height over time for each tracked node.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -276,6 +277,7 @@
         "type": "datasource",
         "uid": "-- Dashboard --"
       },
+      "description": "The maximum latency in the selected time period for each tracked node.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -377,6 +379,7 @@
         "type": "datasource",
         "uid": "-- Dashboard --"
       },
+      "description": "Shows the maximum block difference in the currently selected time period, as well as the timestamp for when that block difference occurred.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -450,7 +453,7 @@
           "refId": "A"
         }
       ],
-      "title": "Max block difference in time period",
+      "title": "Max block difference",
       "transformations": [
         {
           "id": "joinByField",
@@ -503,6 +506,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
+      "description": "The latency for each tracked node, measured as the total time of the made request. This is not a perfect way to measure latency but close enough to get a general idea, and to be able to make a comparison between nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -585,7 +589,7 @@
           "refId": "A"
         }
       ],
-      "title": "Latency (RPC request time_total)",
+      "title": "Latency",
       "type": "timeseries"
     },
     {
@@ -741,6 +745,6 @@
   "timezone": "",
   "title": "Blockchain Monitor",
   "uid": "a2549b8b-d628-47f1-be83-4efc987dd0b8-1",
-  "version": 7,
+  "version": 8,
   "weekStart": ""
 }
