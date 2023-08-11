@@ -287,7 +287,7 @@ async def request(api_url: str, api_class: str) -> dict:
             elif 'ws' in api_url:
                 payload = {
                     "jsonrpc": "2.0",
-                    "method": "chain_getHeader",
+                    "method": "chain_getHeader",  # TODO: is this an error, should be `method`?
                     "params": [],
                     "id": 1
                 }
