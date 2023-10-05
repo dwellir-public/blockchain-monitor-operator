@@ -35,6 +35,7 @@ class BlockchainMonitorCharm(ops.CharmBase):
         """Handle changed configuration."""
         try:
             util.update_monitor_config_file(self.config)
+            util.restart_service(c.SERVICE_NAME)
         except FileNotFoundError as e:
             self.unit.status = BlockedStatus(str(e))
             event.defer()
