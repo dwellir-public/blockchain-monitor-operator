@@ -21,11 +21,11 @@ During the install process the charm automatically sets up a number of things ac
 
 Example deployment command:
 
-    juju deploy ./blockchain-monitor_ubuntu-22.04-amd64.charm --config influxdb-bucket=block_heights --config influxdb-org=dwellir --constraints instance-type=t3.large
+    juju deploy ./blockchain-monitor_ubuntu-22.04-amd64.charm --config influxdb-bucket=block_heights --config influxdb-org=dwellir --config rpc-endpoint-api-url=...
 
-The `--constraints` setting is for an AWS deployment.
+If deploying in AWS, add the `--constraints` setting. Example: `--constraints instance-type=t3.large`.
 
-The blockchain-monitor charm also needs access to an instance of the RPC endpoint database developed in parallel to this application to actually get a list of blockchain node endpoints to monitor. Even though `localhost` is the default configuration for the `rpc-endpoint-api-url` option, this charm does not set up the RPC endpoint database. Please refer to the [endpointdb readme](https://github.com/dwellir-public/endpointdb) for instructions on how to do that.
+The blockchain-monitor charm also needs access to an instance of the RPC endpoint database developed in parallel to this application to actually get a list of blockchain node endpoints to monitor. Even though `localhost` is the default configuration for the `rpc-endpoint-api-url` option, this charm does not set up the RPC endpoint database. Please refer to the [endpointdb readme](https://github.com/dwellir-public/rpc-endpoint-db-operator) for instructions on how to do that.
 
 ## Usage
 
