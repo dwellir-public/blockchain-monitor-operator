@@ -4,3 +4,4 @@ requests
 urllib3
 aiohttp
 pycurl >= 7.45.2
+aiocurl
