@@ -68,6 +68,9 @@ def main():
         sys.exit(1)
 
     while True:
+        # TODO: add logging for time per loop
+        # TODO: add logging for nr warnings/errors per loop
+        # TODO: add logging for avg task time, outliers
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         all_results = loop.run_until_complete(fetch_results(all_endpoints))  # TODO: update how to return a none result?
 
@@ -75,12 +78,14 @@ def main():
         block_heights = {}
         for endpoint, results in zip(all_endpoints, all_results):
             try:
+                logger.info(f"CHECKPOINT 1, RESULTS: {results}")
                 if results and results.get('latest_block_height'):
                     chain = endpoint[0]
                     if chain not in block_heights.keys():
                         block_heights[chain] = []
                     block_heights[chain].append((endpoint[1], int(results.get('latest_block_height', -1))))
             except (AttributeError, UnboundLocalError) as e:
+                # TODO: add 'continue' here?
                 logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
 
         # Calculate block_height diffs and maxes
@@ -241,14 +246,23 @@ async def fetch_results(all_url_api_tuples: list):
     loop = asyncio.get_event_loop()  # Reuse the current event loop
     tasks = []
     for _, url, api_class in all_url_api_tuples:
-        if is_valid_url(url):
+        if is_http_url(url):
+            tasks.append(loop.create_task(fetch(url, api_class)))
+        if is_ws_url(url):
             tasks.append(loop.create_task(request(url, api_class)))
     results = await asyncio.gather(*tasks, return_exceptions=True)
     return results
 
 
-def is_valid_url(url):
-    valid_schemes = ['ws', 'wss', 'http', 'https']
+def is_http_url(url: str) -> bool:
+    return is_valid_url(url, ['http', 'https'])
+
+
+def is_ws_url(url: str) -> bool:
+    return is_valid_url(url, ['ws', 'wss'])
+
+
+def is_valid_url(url: str, valid_schemes: list) -> bool:
     parsed_url = urlparse(url)
     return parsed_url.scheme in valid_schemes
 
@@ -276,6 +290,7 @@ def get_highest_block(api_class: str, response):
 # TODO: define return type
 async def fetch(url: str, api_class: str):
     # Setup
+    # TODO: add User-Agent Header to avoid error 1010
     headers = ['Connection: keep-alive', 'Keep-Alive: timeout=4, max=10', 'Content-Type: application/json']
     method = get_json_rpc_method(api_class)
     if not method:
@@ -296,17 +311,20 @@ async def fetch(url: str, api_class: str):
     # Debug options
     # curl.setopt(pycurl.VERBOSE, 1)  # To print entire request flow
     # curl.setopt(pycurl.WRITEFUNCTION, lambda x: None)  # To keep stdout clean
-    c.perform()
+    await c.perform()
     total_time = c.getinfo(aiocurl.TOTAL_TIME)
     dns_time = c.getinfo(aiocurl.NAMELOOKUP_TIME)
     connect_time = c.getinfo(aiocurl.CONNECT_TIME)
     pretransfer_time = c.getinfo(aiocurl.PRETRANSFER_TIME)
     starttransfer_time = c.getinfo(aiocurl.STARTTRANSFER_TIME)
     http_code = c.getinfo(aiocurl.HTTP_CODE)
-    exit_code = c.getinfo(aiocurl.RESPONSE_CODE)
-    response_data = json.loads(response_buffer.getvalue().decode('utf-8'))
     c.close()
-    # TODO: add error handling
+    try:
+        response_json = response_buffer.getvalue().decode('utf-8')
+        response_dict = json.loads(response_json)
+    except json.JSONDecodeError as e:
+        logger.error("JSONDecodeError for response: [%s], error: [%s]", response_json, e)
+        return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
     return {
         'http_code': http_code,
         'time_total': total_time,
@@ -314,8 +332,8 @@ async def fetch(url: str, api_class: str):
         'time_connect': connect_time,
         'time_pretransfer': pretransfer_time,
         'time_starttransfer': starttransfer_time,
-        'exit_code': exit_code,
-        'latest_block_height': get_highest_block(api_class, response_data)
+        'exit_code': 0,  # TODO: add error/exit_code handling
+        'latest_block_height': get_highest_block(api_class, response_dict)
     }
 
 
