@@ -254,10 +254,12 @@ def is_valid_url(url):
 
 def get_json_rpc_method(api_class: str) -> str:
     if api_class == 'substrate':
-        return "chain_getHeader"
+        return 'chain_getHeader'
     if api_class == 'ethereum':
-        return "eth_blockNumber"
-    return ""
+        return 'eth_blockNumber'
+    if api_class == 'starknet':
+        return 'starknet_blockNumber'
+    return ''
 
 
 def get_highest_block(api_class: str, response):
@@ -265,6 +267,8 @@ def get_highest_block(api_class: str, response):
         return int(response['result']['number'], 16)
     if api_class == 'ethereum':
         return int(response['result'], 16)
+    if api_class == 'starknet':
+        return int(response['result'])
     return None
 
 
