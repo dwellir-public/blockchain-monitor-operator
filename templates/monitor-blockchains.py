@@ -282,18 +282,19 @@ async def request(api_url: str, api_class: str) -> dict:
         try:
             start_time = time.monotonic()
             response = None
+            payload = {
+                "jsonrpc": "2.0",
+                "method": method,
+                "params": [],
+                "id": 1
+            }
             if 'http' in api_url:
-                async with session.post(api_url, json={"jsonrpc": "2.0", "id": 1, "method": method, "params": []}) as resp:
+                async with session.post(api_url, json=payload) as resp:
                     end_time = time.monotonic()
                     response = await resp.json()
                     http_code = resp.status
             elif 'ws' in api_url:
-                payload = {
-                    "jsonrpc": "2.0",
-                    "method": "chain_getHeader",  # TODO: is this an error, should be `method`?
-                    "params": [],
-                    "id": 1
-                }
+
                 async with session.ws_connect(api_url) as ws:
                     end_time = time.monotonic()
                     await ws.send_json(payload)
