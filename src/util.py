@@ -12,7 +12,7 @@ import constants as c
 def install_apt_dependencies(script_path: Path) -> None:
     sp.run([script_path], check=True)
     sp.run(['apt-get', 'update'], check=True)
-    sp.run(['apt', 'install', 'influxdb2', 'python3-pip', '-y'], check=True)
+    sp.run(['apt', 'install', 'influxdb2', 'python3-pip', 'libcurl4-openssl-dev', 'libssl-dev', '-y'], check=True)
 
 
 def install_python_dependencies(requirements_file: Path) -> None:
