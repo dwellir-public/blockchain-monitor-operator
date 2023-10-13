@@ -14,9 +14,10 @@ from urllib.parse import urlparse
 import aiohttp
 import aiocurl
 import pycurl
+# TODO: move to readme during readme update
+# pycurl docs: http://pycurl.io/docs/latest/index.html
 from io import BytesIO
 import re
-import time
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -134,8 +135,6 @@ def main():
                             http_code=http_code)
                         warn_counter = warn_counter + 1
                     else:
-                        # TODO: remove this
-                        # logger.warning("BHD CHECKPOINT 2! Diff %s for chain %s on URL %s", block_height_diffs[chain][url], chain, url)
                         brp = block_height_request_point(
                             chain=chain,
                             url=url,
@@ -162,7 +161,7 @@ def main():
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - loop_start_time
         logger.info("Processed endpoints: %s/%s", len(all_results), len(all_endpoints))
-        logger.info("Logged warnings: %s", warn_counter)
+        logger.info("Endpoints warning: %s", warn_counter)
         logger.info("Loop time: %.3fs", loop_time)
         mean_time = loop_time / len(all_endpoints)
         logger.info("Mean time: %.3fs", mean_time)
@@ -223,15 +222,12 @@ def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, 
             # TODO: does this need to be a callable in the function argument?
             results = get_endpoints_from(rpc_endpoint_db_url)
             last_cache_refresh = time.time()
-
             # Save updated cache to file
             with open(cache_filename, 'w', encoding='utf-8') as f:
                 json.dump((results, last_cache_refresh), f)
-
         except Exception as e:
             # Log the error
             logger.error("An error occurred while updating cache: %s", str(e))
-
             # Load the previous cache value
             with open(cache_filename, 'r', encoding='utf-8') as f:
                 results, last_cache_refresh = json.load(f)
@@ -485,8 +481,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
     'endpoints' - list of tuples (<chain>, <URL>, <API class>)
     'return' - list of dicts
     """
-    # TODO: add User-Agent Header to avoid error 1010
-    headers = ['Connection: keep-alive', 'Keep-Alive: timeout=4, max=10', 'Content-Type: application/json']
+    # TODO: if error 1010 pops up again, try rotating user agents per https://www.scrapehero.com/how-to-fake-and-rotate-user-agents-using-python-3/
+    headers = ['Connection: keep-alive',
+               'Keep-Alive: timeout=4, max=10',
+               'Content-Type: application/json',
+               'User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0'
+               ]
     queue = endpoints.copy()
     cm = pycurl.CurlMulti()
     cm.handles = []
