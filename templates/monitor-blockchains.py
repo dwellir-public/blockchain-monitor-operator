@@ -179,7 +179,7 @@ def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> lis
     return load_from_flask_api(rpc_endpoint_db_url, get_all_endpoints, 'cache.json', cache_refresh_interval)
 
 
-def load_from_flask_api(rpc_endpoint_db_url: str, rpc_flask_get_function: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
+def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
     """Load endpoints from cache or refresh if cache is stale."""
     # Load cached values from file
     try:
@@ -201,7 +201,8 @@ def load_from_flask_api(rpc_endpoint_db_url: str, rpc_flask_get_function: Callab
     if refresh_cache:
         try:
             logger.info("Updating cache from Flask API")
-            results = rpc_flask_get_function(rpc_endpoint_db_url)
+            # TODO: does this need to be a callable in the function argument?
+            results = get_endpoints_from(rpc_endpoint_db_url)
             last_cache_refresh = time.time()
 
             # Save updated cache to file
@@ -221,13 +222,14 @@ def load_from_flask_api(rpc_endpoint_db_url: str, rpc_flask_get_function: Callab
 
 
 def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
-    url_api_tuples = []
+    """Returns a list of endpoint tuples on the form (<chain>, <URL>, <API class>)."""
+    endpoint_tuples = []
     all_chains = requests.get(f'{rpc_endpoint_db_url}/all/chains', timeout=3)
     for chain in all_chains.json():
         chain_info = requests.get(f'{rpc_endpoint_db_url}/chain_info?chain_name={chain["name"]}', timeout=1)
         for url in chain_info.json()['urls']:
-            url_api_tuples.append((chain_info.json()['chain_name'], url, chain_info.json()['api_class']))
-    return url_api_tuples
+            endpoint_tuples.append((chain_info.json()['chain_name'], url, chain_info.json()['api_class']))
+    return endpoint_tuples
 
 
 def block_height_request_point(chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str) -> Point:
