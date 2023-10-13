@@ -13,6 +13,7 @@ import time
 from urllib.parse import urlparse
 import aiohttp
 import aiocurl
+import pycurl
 from io import BytesIO
 import re
 
@@ -70,23 +71,30 @@ def main():
         sys.exit(1)
 
     while True:
+        logger.info("MONITOR LOOP START")
         # TODO: add logging for time per loop
         # TODO: add logging for nr warnings/errors per loop
         # TODO: add logging for avg task time, outliers
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
-        all_results = loop.run_until_complete(fetch_results(all_endpoints))
+        # all_results = loop.run_until_complete(fetch_results(all_endpoints))
+        all_results = fetch_results_pycurl(endpoints=all_endpoints)
 
         # Create block_heights dict
         block_heights = {}
-        for endpoint, results in zip(all_endpoints, all_results):
+        for result in all_results:
             try:
-                if results and results.get('latest_block_height'):
-                    chain = endpoint[0]
+                if result and result.get('latest_block_height'):
+                    try:
+                        chain = result.get('chain')
+                        url = result.get('url')
+                    except KeyError as e:
+                        logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
+                        continue
                     if chain not in block_heights.keys():
                         block_heights[chain] = []
-                    block_heights[chain].append((endpoint[1], results.get('latest_block_height')))
+                    block_heights[chain].append((url, result.get('latest_block_height')))
             except (AttributeError, UnboundLocalError) as e:
-                logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
+                logger.error(f'{e.__class__.__name__} for {result}, %s', e)
 
         # Calculate block_height diffs and maxes
         block_height_diffs = {}
@@ -104,20 +112,23 @@ def main():
 
         # TODO: do this by chain, and set timestamp per chain
         # Create and append RPC data points
-        for endpoint, results in zip(all_endpoints, all_results):
-            if results:
+        for result in all_results:
+            if result:
                 try:
-                    http_code = results.get('http_code', -2)
-                    chain = endpoint[0]
-                    url = endpoint[1]
+                    try:
+                        http_code = result.get('http_code', -2)
+                        chain = result.get('chain')
+                        url = result.get('url')
+                    except KeyError as e:
+                        logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
+                        continue
                     # TODO: clean up the point creation
                     if http_code != 200 and url not in block_height_diffs[chain]:
-                        logger.warning("HTTP code [%s] for %s, an indication that something went wrong in the request.",
-                                       http_code, endpoint)
+                        logger.warning("HTTP code [%s] for %s, something went wrong with the request.", http_code, url)
                         brp = block_height_request_point(
                             chain=chain,
                             url=url,
-                            data=results,
+                            data=result,
                             block_height_diff=None,
                             timestamp=timestamp,
                             http_code=http_code)
@@ -127,7 +138,7 @@ def main():
                         brp = block_height_request_point(
                             chain=chain,
                             url=url,
-                            data=results,
+                            data=result,
                             block_height_diff=block_height_diffs[chain][url],
                             timestamp=timestamp,
                             http_code=http_code)
@@ -136,9 +147,9 @@ def main():
                     records.append(brp)
                 except Exception as e:
                     logger.error("%s while accessing results for [%s], results: [%s], error: [%s]", {
-                                 e.__class__.__name__}, endpoint, results, str(e))
+                                 e.__class__.__name__}, url, result, str(e))
             else:
-                logger.warning("Couldn't get results from [%s]. Skipping.", endpoint)
+                logger.warning("Couldn't get results from [%s]. Skipping.", url)
 
         # Create and append max block height data points
         for chain, max_height in chain_max_heights.items():
@@ -147,8 +158,10 @@ def main():
                            .tag("url", "Max over time")
                            .field("block_height", max_height)
                            .time(timestamp))
-
+        logger.info("- MONITOR LOOP END")
+        logger.info("Writing to InfluxDB")
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
+        logger.info("Sleeping...")
         # Sleep between making requests to avoid triggering rate limits.
         time.sleep(request_interval)  # TODO: consider replacing with the schedule package
 
@@ -283,17 +296,18 @@ def get_json_rpc_method(api_class: str) -> str:
         return 'eth_blockNumber'
     if api_class == 'starknet':
         return 'starknet_blockNumber'
-    return ''
+    # TODO: should this be excepted higher up?
+    raise ValueError('Invalid api_class:', api_class)
 
 
-def get_highest_block(api_class: str, response) -> int:
+def get_highest_block(api_class: str, response: dict) -> int:
     if api_class == 'substrate':
         return int(response['result']['number'], 16)
     if api_class == 'ethereum':
         return int(response['result'], 16)
     if api_class == 'starknet':
         return int(response['result'])
-    return None
+    raise ValueError('Invalid api_class:', api_class)
 
 
 def parse_error_code(message: str) -> int:
@@ -411,6 +425,123 @@ def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list
     except Exception as e:
         logger.critical("Failed writing to influx. %s",  str(e))
         sys.exit(1)
+
+
+def get_handle(headers: list) -> pycurl.Curl:
+    c = pycurl.Curl()
+    c.setopt(pycurl.HTTPHEADER, headers)
+    c.setopt(pycurl.POST, 1)
+    c.setopt(pycurl.TIMEOUT_MS, 2500)  # Set a timeout for the request
+    c.setopt(pycurl.NOSIGNAL, 1)  # Disable signals for multi-threaded applications
+    return c
+
+
+# TODO: remove/use the commented measurements
+def get_result(c: pycurl.Curl) -> dict:
+    total_time = c.getinfo(pycurl.TOTAL_TIME)
+    # dns_time = c.getinfo(pycurl.NAMELOOKUP_TIME)
+    # connect_time = c.getinfo(pycurl.CONNECT_TIME)
+    # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
+    # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+    http_code = c.getinfo(pycurl.HTTP_CODE)
+    try:
+        response_json = c.response_buffer.getvalue().decode('utf-8')
+        response_dict = json.loads(response_json)
+    except json.JSONDecodeError as e:
+        logger.error("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
+                     c.url, response_json, http_code, e)
+        return {
+            'chain': c.chain,
+            'url': c.url,
+            'http_code': parse_error_code(response_json) if 'error code:' in str(response_json) else None,
+            'latest_block_height': None,
+            'time_total': None
+        }
+    return {
+        'chain': c.chain,
+        'url': c.url,
+        'http_code': http_code,
+        'time_total': total_time,
+        # 'time_dns': dns_time,
+        # 'time_connect': connect_time,
+        # 'time_pretransfer': pretransfer_time,
+        # 'time_starttransfer': starttransfer_time,
+        'latest_block_height': get_highest_block(c.api_class, response_dict)
+    }
+
+
+# TODO: rename after cleanup
+# TODO: tweak num_connections
+def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
+    """
+    Makes a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
+    'endpoints' - list of tuples (<chain>, <URL>, <API class>)
+    'return' - list of dicts
+    """
+    # TODO: add User-Agent Header to avoid error 1010
+    headers = ['Connection: keep-alive', 'Keep-Alive: timeout=4, max=10', 'Content-Type: application/json']
+    queue = endpoints.copy()
+    cm = pycurl.CurlMulti()
+    cm.handles = []
+    num_requests = len(queue)
+    num_conn = min(num_connections, num_requests)
+    for _ in range(0, num_conn):
+        cm.handles.append(get_handle(headers))
+    # Main loop
+    freelist = cm.handles[:]
+    num_processed = 0
+    results = []
+    while num_processed < num_requests:
+        # If there is an url to process and a free curl object, add to multi stack
+        while queue and freelist:  # and "queue" of URL:s
+            chain, url, api_class = queue.pop()
+            c = freelist.pop()
+            c.api_class = api_class
+            c.chain = chain
+            c.url = url
+            c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
+            c.response_buffer = BytesIO()
+            c.setopt(pycurl.WRITEDATA, c.response_buffer)
+            data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
+            c.setopt(pycurl.POSTFIELDS, data)
+            cm.add_handle(c)
+        # Run the internal curl state machine for the multi stack
+        while True:
+            ret, num_handles = cm.perform()
+            if ret != pycurl.E_CALL_MULTI_PERFORM:
+                break
+        # Check for curl objects which have terminated, and add them to the freelist
+        while True:
+            num_q, ok_list, err_list = cm.info_read()
+            for c in ok_list:
+                results.append(get_result(c))
+                c.api_class = ""
+                c.chain = ""
+                c.url = ""
+                cm.remove_handle(c)
+                # TODO: add to logger, but not on per default?
+                # print("Success:", c.url, c.getinfo(pycurl.EFFECTIVE_URL))
+                freelist.append(c)
+            for c, errno, errmsg in err_list:
+                logger.error("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s]", c.url, errno, errmsg)
+                results.append(get_result(c))
+                c.api_class = ""
+                c.chain = ""
+                c.url = ""
+                cm.remove_handle(c)
+                freelist.append(c)
+            num_processed = num_processed + len(ok_list) + len(err_list)
+            if num_q == 0:
+                break
+        # Currently no more I/O is pending, could do something in the meantime
+        # (display a progress bar, etc.).
+        # We just call select() to sleep until some more data is available.
+        cm.select(1.0)
+    # Cleanup
+    for c in cm.handles:
+        c.close()
+    cm.close()
+    return results
 
 
 if __name__ == '__main__':
