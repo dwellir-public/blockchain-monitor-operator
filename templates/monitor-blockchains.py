@@ -102,6 +102,7 @@ def main():
         timestamp = datetime.utcnow()
         records = []
 
+        # TODO: do this by chain, and set timestamp per chain
         # Create and append RPC data points
         for endpoint, results in zip(all_endpoints, all_results):
             if results:
@@ -110,7 +111,7 @@ def main():
                     chain = endpoint[0]
                     url = endpoint[1]
                     # TODO: clean up the point creation
-                    if http_code != 200:
+                    if http_code != 200 and url not in block_height_diffs[chain]:
                         logger.warning("HTTP code [%s] for %s, an indication that something went wrong in the request.",
                                        http_code, endpoint)
                         brp = block_height_request_point(
@@ -324,11 +325,15 @@ async def fetch(url: str, api_class: str):
     # curl.setopt(pycurl.VERBOSE, 1)  # To print entire request flow
     # curl.setopt(pycurl.WRITEFUNCTION, lambda x: None)  # To keep stdout clean
     await c.perform()
+    redirect_time = c.getinfo(aiocurl.REDIRECT_TIME)
     total_time = c.getinfo(aiocurl.TOTAL_TIME)
     dns_time = c.getinfo(aiocurl.NAMELOOKUP_TIME)
     connect_time = c.getinfo(aiocurl.CONNECT_TIME)
+    appconnect_time = c.getinfo(aiocurl.APPCONNECT_TIME)
     pretransfer_time = c.getinfo(aiocurl.PRETRANSFER_TIME)
     starttransfer_time = c.getinfo(aiocurl.STARTTRANSFER_TIME)
+    logger.info("TIMES for %s\n redirect: %s  total: %s  dns: %s  conn: %s  appconn: %s  pre: %s  start: %s\n", url, redirect_time, total_time,
+                dns_time, connect_time, appconnect_time, pretransfer_time, starttransfer_time)
     http_code = c.getinfo(aiocurl.HTTP_CODE)
     c.close()
     try:
