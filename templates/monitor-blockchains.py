@@ -16,6 +16,7 @@ import aiocurl
 import pycurl
 from io import BytesIO
 import re
+import time
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -71,10 +72,9 @@ def main():
         sys.exit(1)
 
     while True:
-        logger.info("MONITOR LOOP START")
-        # TODO: add logging for time per loop
-        # TODO: add logging for nr warnings/errors per loop
-        # TODO: add logging for avg task time, outliers
+        logger.info("- MONITOR LOOP START")
+        loop_start_time = time.time()
+        # TODO: add logging outliers, std, to catch timeouts?
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         # all_results = loop.run_until_complete(fetch_results(all_endpoints))
         all_results = fetch_results_pycurl(endpoints=all_endpoints)
@@ -109,8 +109,8 @@ def main():
 
         timestamp = datetime.utcnow()
         records = []
-
-        # TODO: do this by chain, and set timestamp per chain
+        warn_counter = 0
+        # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
             if result:
@@ -132,6 +132,7 @@ def main():
                             block_height_diff=None,
                             timestamp=timestamp,
                             http_code=http_code)
+                        warn_counter = warn_counter + 1
                     else:
                         # TODO: remove this
                         # logger.warning("BHD CHECKPOINT 2! Diff %s for chain %s on URL %s", block_height_diffs[chain][url], chain, url)
@@ -159,6 +160,12 @@ def main():
                            .field("block_height", max_height)
                            .time(timestamp))
         logger.info("- MONITOR LOOP END")
+        loop_time = time.time() - loop_start_time
+        logger.info("Processed endpoints: %s/%s", len(all_results), len(all_endpoints))
+        logger.info("Logged warnings: %s", warn_counter)
+        logger.info("Loop time: %.3fs", loop_time)
+        mean_time = loop_time / len(all_endpoints)
+        logger.info("Mean time: %.3fs", mean_time)
         logger.info("Writing to InfluxDB")
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
         logger.info("Sleeping...")
@@ -357,7 +364,7 @@ async def fetch(url: str, api_class: str):
         response_json = response_buffer.getvalue().decode('utf-8')
         response_dict = json.loads(response_json)
     except json.JSONDecodeError as e:
-        logger.error("JSONDecodeError for request to [%s] with response: [%s], error: [%s]", url, response_json, e)
+        logger.warning("JSONDecodeError for request to [%s] with response: [%s], error: [%s]", url, response_json, e)
         if str(response_json) and 'error code:' in str(response_json):
             return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(response_json), 'error': 'JSONDecodeError'}
         return {'latest_block_height': None, 'time_total': None, 'error': 'JSONDecodeError'}
@@ -448,8 +455,8 @@ def get_result(c: pycurl.Curl) -> dict:
         response_json = c.response_buffer.getvalue().decode('utf-8')
         response_dict = json.loads(response_json)
     except json.JSONDecodeError as e:
-        logger.error("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
-                     c.url, response_json, http_code, e)
+        logger.warning("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
+                       c.url, response_json, http_code, e)
         return {
             'chain': c.chain,
             'url': c.url,
