@@ -12,7 +12,6 @@ import warnings
 import time
 from urllib.parse import urlparse
 import aiohttp
-import aiocurl
 import pycurl
 # TODO: move to readme during readme update
 # pycurl docs: http://pycurl.io/docs/latest/index.html
@@ -271,18 +270,6 @@ def block_height_request_point(chain: str, url: str, data: dict, block_height_di
     return point
 
 
-async def fetch_results(all_url_api_tuples: list):
-    loop = asyncio.get_event_loop()  # Reuse the current event loop
-    tasks = []
-    for _, url, api_class in all_url_api_tuples:
-        if is_http_url(url):
-            tasks.append(loop.create_task(fetch(url, api_class)))
-        if is_ws_url(url):
-            tasks.append(loop.create_task(request(url, api_class)))
-    results = await asyncio.gather(*tasks, return_exceptions=True)
-    return results
-
-
 def is_http_url(url: str) -> bool:
     return is_valid_url(url, ['http', 'https'])
 
@@ -322,61 +309,6 @@ def parse_error_code(message: str) -> int:
     if match:
         return int(match.group())
     return -1
-
-
-# TODO: define return type
-async def fetch(url: str, api_class: str):
-    # Setup
-    # TODO: add User-Agent Header to avoid error 1010
-    headers = ['Connection: keep-alive', 'Keep-Alive: timeout=4, max=10', 'Content-Type: application/json']
-    method = get_json_rpc_method(api_class)
-    if not method:
-        raise ValueError('Invalid api_class:', api_class)
-    data = json.dumps({'method': method, 'params': [], 'id': 1, 'jsonrpc': '2.0'})
-    response_buffer = BytesIO()
-    # Connect
-    # TODO: can this implementaiton be improved by using CurlMulti?
-    # TODO: add remote server validation using certifi? c.setopt(aiocurl.CAINFO, certifi.where())
-    c = aiocurl.Curl()
-    c.setopt(aiocurl.URL, url)
-    c.setopt(aiocurl.HTTPHEADER, headers)
-    c.setopt(aiocurl.POST, 1)
-    c.setopt(aiocurl.POSTFIELDS, data)
-    c.setopt(aiocurl.WRITEDATA, response_buffer)
-    c.setopt(aiocurl.TIMEOUT_MS, 2500)  # Set a timeout for the request
-    c.setopt(aiocurl.NOSIGNAL, 1)  # Disable signals for multi-threaded applications
-    # Debug options
-    # curl.setopt(pycurl.VERBOSE, 1)  # To print entire request flow
-    # curl.setopt(pycurl.WRITEFUNCTION, lambda x: None)  # To keep stdout clean
-    await c.perform()
-    redirect_time = c.getinfo(aiocurl.REDIRECT_TIME)
-    total_time = c.getinfo(aiocurl.TOTAL_TIME)
-    dns_time = c.getinfo(aiocurl.NAMELOOKUP_TIME)
-    connect_time = c.getinfo(aiocurl.CONNECT_TIME)
-    appconnect_time = c.getinfo(aiocurl.APPCONNECT_TIME)
-    pretransfer_time = c.getinfo(aiocurl.PRETRANSFER_TIME)
-    starttransfer_time = c.getinfo(aiocurl.STARTTRANSFER_TIME)
-    logger.info("TIMES for %s\n redirect: %s  total: %s  dns: %s  conn: %s  appconn: %s  pre: %s  start: %s\n", url, redirect_time, total_time,
-                dns_time, connect_time, appconnect_time, pretransfer_time, starttransfer_time)
-    http_code = c.getinfo(aiocurl.HTTP_CODE)
-    c.close()
-    try:
-        response_json = response_buffer.getvalue().decode('utf-8')
-        response_dict = json.loads(response_json)
-    except json.JSONDecodeError as e:
-        logger.warning("JSONDecodeError for request to [%s] with response: [%s], error: [%s]", url, response_json, e)
-        if str(response_json) and 'error code:' in str(response_json):
-            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(response_json), 'error': 'JSONDecodeError'}
-        return {'latest_block_height': None, 'time_total': None, 'error': 'JSONDecodeError'}
-    return {
-        'http_code': http_code,
-        'time_total': total_time,
-        'time_dns': dns_time,
-        'time_connect': connect_time,
-        'time_pretransfer': pretransfer_time,
-        'time_starttransfer': starttransfer_time,
-        'latest_block_height': get_highest_block(api_class, response_dict)
-    }
 
 
 async def request(api_url: str, api_class: str) -> dict:
