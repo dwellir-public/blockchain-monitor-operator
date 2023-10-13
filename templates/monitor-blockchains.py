@@ -64,6 +64,7 @@ def main():
         logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
         sys.exit(1)
 
+    # TODO: rename RPC_FLASK_API to RPC_ENDPOINT_DB_URL
     if not test_connection(config['RPC_FLASK_API'] + '/all/chains'):
         logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
         sys.exit(1)
@@ -173,12 +174,12 @@ def test_connection(url: str) -> bool:
         logger.warning('Connection to URL failed: %s', str(e))
 
 
-def load_endpoints(rpc_flask_api: str, cache_refresh_interval: int) -> list:
+def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> list:
     """Gets the RPC endpoints for all chains in the RPC database."""
-    return load_from_flask_api(rpc_flask_api, get_all_endpoints, 'cache.json', cache_refresh_interval)
+    return load_from_flask_api(rpc_endpoint_db_url, get_all_endpoints, 'cache.json', cache_refresh_interval)
 
 
-def load_from_flask_api(rpc_flask_api: str, rpc_flask_get_function: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
+def load_from_flask_api(rpc_endpoint_db_url: str, rpc_flask_get_function: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
     """Load endpoints from cache or refresh if cache is stale."""
     # Load cached values from file
     try:
@@ -200,7 +201,7 @@ def load_from_flask_api(rpc_flask_api: str, rpc_flask_get_function: Callable, ca
     if refresh_cache:
         try:
             logger.info("Updating cache from Flask API")
-            results = rpc_flask_get_function(rpc_flask_api)
+            results = rpc_flask_get_function(rpc_endpoint_db_url)
             last_cache_refresh = time.time()
 
             # Save updated cache to file
@@ -219,11 +220,11 @@ def load_from_flask_api(rpc_flask_api: str, rpc_flask_get_function: Callable, ca
     return results
 
 
-def get_all_endpoints(rpc_flask_api: str) -> list:
+def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
     url_api_tuples = []
-    all_chains = requests.get(f'{rpc_flask_api}/all/chains', timeout=3)
+    all_chains = requests.get(f'{rpc_endpoint_db_url}/all/chains', timeout=3)
     for chain in all_chains.json():
-        chain_info = requests.get(f'{rpc_flask_api}/chain_info?chain_name={chain["name"]}', timeout=1)
+        chain_info = requests.get(f'{rpc_endpoint_db_url}/chain_info?chain_name={chain["name"]}', timeout=1)
         for url in chain_info.json()['urls']:
             url_api_tuples.append((chain_info.json()['chain_name'], url, chain_info.json()['api_class']))
     return url_api_tuples
