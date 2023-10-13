@@ -200,6 +200,7 @@ def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> lis
     return load_from_flask_api(rpc_endpoint_db_url, get_all_endpoints, 'cache.json', cache_refresh_interval)
 
 
+# TODO: clean up cache handling
 def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
     """Load endpoints from cache or refresh if cache is stale."""
     # Load cached values from file
@@ -311,6 +312,7 @@ def parse_error_code(message: str) -> int:
     return -1
 
 
+# TODO: deprecated, consider re-implementing for WS connections
 async def request(api_url: str, api_class: str) -> dict:
     method = get_json_rpc_method(api_class)
     if not method:
