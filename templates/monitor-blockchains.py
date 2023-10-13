@@ -110,7 +110,8 @@ def main():
 
         timestamp = datetime.utcnow()
         records = []
-        warn_counter = 0
+        counter_warnings = 0
+        counter_ws = 0
         # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
@@ -123,6 +124,8 @@ def main():
                     except KeyError as e:
                         logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
                         continue
+                    if 'ws' in url:
+                        counter_ws = counter_ws + 1
                     # TODO: clean up the point creation
                     if http_code != 200 and url not in block_height_diffs[chain]:
                         logger.warning("HTTP code [%s] for %s, something went wrong with the request.", http_code, url)
@@ -133,7 +136,7 @@ def main():
                             block_height_diff=None,
                             timestamp=timestamp,
                             http_code=http_code)
-                        warn_counter = warn_counter + 1
+                        counter_warnings = counter_warnings + 1
                     else:
                         brp = block_height_request_point(
                             chain=chain,
@@ -161,7 +164,8 @@ def main():
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - loop_start_time
         logger.info("Processed endpoints: %s/%s", len(all_results), len(all_endpoints))
-        logger.info("Endpoints warning: %s", warn_counter)
+        logger.info("Endpoints warning: %s", counter_warnings)
+        logger.info("Endpoints with ws: %s", counter_ws)
         logger.info("Loop time: %.3fs", loop_time)
         mean_time = loop_time / len(all_endpoints)
         logger.info("Mean time: %.3fs", mean_time)
