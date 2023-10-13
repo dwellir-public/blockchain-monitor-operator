@@ -14,6 +14,7 @@ from urllib.parse import urlparse
 import aiohttp
 import aiocurl
 from io import BytesIO
+import re
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -78,12 +79,11 @@ def main():
         block_heights = {}
         for endpoint, results in zip(all_endpoints, all_results):
             try:
-                logger.info(f"CHECKPOINT 1, RESULTS: {results}")
                 if results and results.get('latest_block_height'):
                     chain = endpoint[0]
                     if chain not in block_heights.keys():
                         block_heights[chain] = []
-                    block_heights[chain].append((endpoint[1], int(results.get('latest_block_height', -1))))
+                    block_heights[chain].append((endpoint[1], results.get('latest_block_height')))
             except (AttributeError, UnboundLocalError) as e:
                 # TODO: add 'continue' here?
                 logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
@@ -106,37 +106,38 @@ def main():
         for endpoint, results in zip(all_endpoints, all_results):
             if results:
                 try:
-                    exit_code = int(results.get('exit_code', -1)) if results.get('exit_code') is not None else None
-                    if exit_code is None:
-                        logger.warning("None result for %s. Adding exit_code=5 data point.", endpoint)
-                        # TODO: evaluate if the exit_code handling can be improved
-                        records.append(Point("block_height_request")
-                                       .tag("chain", endpoint[0])
-                                       .tag("url", endpoint[1])
-                                       .field("exit_code", 5)
-                                       .time(timestamp))
-                    elif exit_code != 0:
-                        logger.warning("Non-zero exit code found for %s, an indication that the endpoint isn't healthy.", endpoint)
-                        # TODO: evaluate if the exit_code handling can be improved
-                        records.append(Point("block_height_request")
-                                       .tag("chain", endpoint[0])
-                                       .tag("url", endpoint[1])
-                                       .field("exit_code", exit_code)
-                                       .time(timestamp))
-                    else:
+                    http_code = results.get('http_code', -2)
+                    chain = endpoint[0]
+                    url = endpoint[1]
+                    # TODO: clean up the point creation
+                    if http_code != 200:
+                        logger.warning("HTTP code [%s] for %s, an indication that something went wrong in the request.",
+                                       http_code, endpoint)
                         brp = block_height_request_point(
-                            chain=endpoint[0],
-                            url=endpoint[1],
+                            chain=chain,
+                            url=url,
                             data=results,
-                            block_height_diff=block_height_diffs[endpoint[0]][endpoint[1]],
-                            timestamp=timestamp)
+                            block_height_diff=None,
+                            timestamp=timestamp,
+                            http_code=http_code)
+                    else:
+                        # TODO: remove this
+                        # logger.warning("BHD CHECKPOINT 2! Diff %s for chain %s on URL %s", block_height_diffs[chain][url], chain, url)
+                        brp = block_height_request_point(
+                            chain=chain,
+                            url=url,
+                            data=results,
+                            block_height_diff=block_height_diffs[chain][url],
+                            timestamp=timestamp,
+                            http_code=http_code)
                         # TODO: re-evaluate how sustainable logging might be solved for this app (this produces too many logs)
                         # logger.info("Writing to influx %s", brp)
-                        records.append(brp)
+                    records.append(brp)
                 except Exception as e:
-                    logger.error("Error while accessing results for %s: %s %s", endpoint, results, str(e))
+                    logger.error("%s while accessing results for [%s], results: [%s], error: [%s]", {
+                                 e.__class__.__name__}, endpoint, results, str(e))
             else:
-                logger.warning("Couldn't get information from %s. Skipping.", endpoint)
+                logger.warning("Couldn't get results from [%s]. Skipping.", endpoint)
 
         # Create and append max block height data points
         for chain, max_height in chain_max_heights.items():
@@ -157,7 +158,7 @@ def test_influxdb_connection(url: str, token: str, org: str) -> bool:
     try:
         return client.ping()
     except Exception as e:
-        print(e)
+        logger.error("%s while testing conenction to InfluxDB.", e.__class__.__name__)
         return False
 
 
@@ -227,19 +228,23 @@ def get_all_endpoints(rpc_flask_api: str) -> list:
     return url_api_tuples
 
 
-def block_height_request_point(chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime) -> Point:
+def block_height_request_point(chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str) -> Point:
     """Defines a block height request point measurement for the database."""
-    time_total = float(data.get('time_total') or 0)
-    latest_block_height = int(data.get('latest_block_height') or -1)
+    time_total = float(data.get('time_total')) if data.get('time_total') else None
+    latest_block_height = int(data.get('latest_block_height')) if data.get('latest_block_height') else None
 
-    return Point("block_height_request") \
+    point = Point("block_height_request") \
         .tag("chain", chain) \
         .tag("url", url) \
-        .field("block_height", latest_block_height) \
-        .field("block_height_diff", block_height_diff) \
-        .field("request_time_total", time_total) \
-        .field("exit_code", 0) \
+        .field("http_code", http_code) \
         .time(timestamp)
+    if isinstance(block_height_diff, int):
+        point = point.field("block_height_diff", block_height_diff)
+    if isinstance(latest_block_height, int):
+        point = point.field("block_height", latest_block_height)
+    if time_total:
+        point = point.field("request_time_total", time_total)
+    return point
 
 
 async def fetch_results(all_url_api_tuples: list):
@@ -277,7 +282,7 @@ def get_json_rpc_method(api_class: str) -> str:
     return ''
 
 
-def get_highest_block(api_class: str, response):
+def get_highest_block(api_class: str, response) -> int:
     if api_class == 'substrate':
         return int(response['result']['number'], 16)
     if api_class == 'ethereum':
@@ -285,6 +290,13 @@ def get_highest_block(api_class: str, response):
     if api_class == 'starknet':
         return int(response['result'])
     return None
+
+
+def parse_error_code(message: str) -> int:
+    match = re.search(r'\d+', message)
+    if match:
+        return int(match.group())
+    return -1
 
 
 # TODO: define return type
@@ -323,8 +335,10 @@ async def fetch(url: str, api_class: str):
         response_json = response_buffer.getvalue().decode('utf-8')
         response_dict = json.loads(response_json)
     except json.JSONDecodeError as e:
-        logger.error("JSONDecodeError for response: [%s], error: [%s]", response_json, e)
-        return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
+        logger.error("JSONDecodeError for request to [%s] with response: [%s], error: [%s]", url, response_json, e)
+        if str(response_json) and 'error code:' in str(response_json):
+            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(response_json), 'error': 'JSONDecodeError'}
+        return {'latest_block_height': None, 'time_total': None, 'error': 'JSONDecodeError'}
     return {
         'http_code': http_code,
         'time_total': total_time,
@@ -332,7 +346,6 @@ async def fetch(url: str, api_class: str):
         'time_connect': connect_time,
         'time_pretransfer': pretransfer_time,
         'time_starttransfer': starttransfer_time,
-        'exit_code': 0,  # TODO: add error/exit_code handling
         'latest_block_height': get_highest_block(api_class, response_dict)
     }
 
@@ -360,7 +373,6 @@ async def request(api_url: str, api_class: str) -> dict:
                     response = await resp.json()
                     http_code = resp.status
             elif 'ws' in api_url:
-
                 async with session.ws_connect(api_url) as ws:
                     end_time = time.monotonic()
                     await ws.send_json(payload)
@@ -369,18 +381,16 @@ async def request(api_url: str, api_class: str) -> dict:
                 http_code = 0
             highest_block = get_highest_block(api_class, response)
             latency = (end_time - start_time)
-            exit_code = 0
         except aiohttp.ClientError as e:
             print(f"aiohttp.ClientError in request for url {api_url} using {api_class}:", response, e)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
+            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(str(response))}
         except Exception as ee:
             print(f"{ee.__class__.__name__} in request for url {api_url} using {api_class}:", response, ee)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': None, 'exit_code': None}
+            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(str(response))}
 
         return {
             'http_code': http_code,
             'time_total': latency,
-            'exit_code': exit_code,
             'latest_block_height': highest_block
         }
 
