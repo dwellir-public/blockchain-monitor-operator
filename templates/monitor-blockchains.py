@@ -74,7 +74,7 @@ def main():
         # TODO: add logging for nr warnings/errors per loop
         # TODO: add logging for avg task time, outliers
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
-        all_results = loop.run_until_complete(fetch_results(all_endpoints))  # TODO: update how to return a none result?
+        all_results = loop.run_until_complete(fetch_results(all_endpoints))
 
         # Create block_heights dict
         block_heights = {}
@@ -86,7 +86,6 @@ def main():
                         block_heights[chain] = []
                     block_heights[chain].append((endpoint[1], results.get('latest_block_height')))
             except (AttributeError, UnboundLocalError) as e:
-                # TODO: add 'continue' here?
                 logger.error(f'{e.__class__.__name__} for {endpoint}, {results}, %s', e)
 
         # Calculate block_height diffs and maxes
@@ -223,6 +222,7 @@ def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, 
 
 def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
     """Returns a list of endpoint tuples on the form (<chain>, <URL>, <API class>)."""
+    # TODO: make return a dict instead?
     endpoint_tuples = []
     all_chains = requests.get(f'{rpc_endpoint_db_url}/all/chains', timeout=3)
     for chain in all_chains.json():
