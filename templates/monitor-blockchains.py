@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import asyncio
 from datetime import datetime
 import json
 import logging
@@ -8,10 +7,8 @@ import sys
 from pathlib import Path
 from typing import Callable
 import requests
-import warnings
 import time
 from urllib.parse import urlparse
-import aiohttp
 import pycurl
 # TODO: move to readme during readme update
 # pycurl docs: http://pycurl.io/docs/latest/index.html
@@ -51,17 +48,6 @@ def main():
     }
     cache_max_age = config['RPC_CACHE_MAX_AGE']
     request_interval = config['REQUEST_INTERVAL']
-
-    # Set up event loop for asynchronous fetch calls
-    with warnings.catch_warnings(record=True) as warn:
-        loop = asyncio.get_event_loop()
-        for w in warn:
-            if "no current event loop" in str(w.message):
-                logger.info("First startup, starting new event loop.")
-                loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(loop)
-                break
-        warnings.simplefilter("ignore")
 
     # Test connection to influx before attempting to start
     if not test_influxdb_connection(influxdb['url'], influxdb['token'], influxdb['org']):
@@ -174,7 +160,7 @@ def main():
         logger.info("Mean time: %.3fs", mean_time)
         logger.info("Writing to InfluxDB")
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
-        logger.info("Sleeping...")
+        logger.info("Sleeping for %s seconds...", request_interval)
         # Sleep between making requests to avoid triggering rate limits.
         time.sleep(request_interval)  # TODO: consider replacing with the schedule package
 
@@ -314,52 +300,6 @@ def parse_error_code(message: str) -> int:
     if match:
         return int(match.group())
     return -1
-
-
-# TODO: deprecated, consider re-implementing for WS connections
-async def request(api_url: str, api_class: str) -> dict:
-    method = get_json_rpc_method(api_class)
-    if not method:
-        raise ValueError('Invalid api_class:', api_class)
-    # TODO: possible solution to failing Lagos requests, use or remove
-    # conn = aiohttp.TCPConnector(limit_per_host=5)  # Limit simultaneous connections to reduce connections failures
-    # async with aiohttp.ClientSession(connector=conn) as session:
-    async with aiohttp.ClientSession() as session:
-        try:
-            start_time = time.monotonic()
-            response = None
-            payload = {
-                "jsonrpc": "2.0",
-                "method": method,
-                "params": [],
-                "id": 1
-            }
-            if 'http' in api_url:
-                async with session.post(api_url, json=payload) as resp:
-                    end_time = time.monotonic()
-                    response = await resp.json()
-                    http_code = resp.status
-            elif 'ws' in api_url:
-                async with session.ws_connect(api_url) as ws:
-                    end_time = time.monotonic()
-                    await ws.send_json(payload)
-                    resp = await ws.receive()
-                    response = json.loads(resp.data)
-                http_code = 0
-            highest_block = get_highest_block(api_class, response)
-            latency = (end_time - start_time)
-        except aiohttp.ClientError as e:
-            print(f"aiohttp.ClientError in request for url {api_url} using {api_class}:", response, e)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(str(response))}
-        except Exception as ee:
-            print(f"{ee.__class__.__name__} in request for url {api_url} using {api_class}:", response, ee)
-            return {'latest_block_height': None, 'time_total': None, 'http_code': parse_error_code(str(response))}
-
-        return {
-            'http_code': http_code,
-            'time_total': latency,
-            'latest_block_height': highest_block
-        }
 
 
 def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list) -> None:

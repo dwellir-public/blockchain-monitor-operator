@@ -11,13 +11,13 @@ options:
     type: string
   rpc-endpoint-cache-age:
     description: |
-      The maximum length in seconds to use the cached RPC endpoint values before attempting an update.
+      The max time (seconds) to use the cached RPC endpoints before attempting an update.
     default: 60
     type: int
   request-interval:
     description: |
-      The organization name used when setting up InfluxDB.
-    default: 10
+      The sleep period (seconds) between two request batches.
+    default: 12
     type: int
 
   # InfluxDB settings
