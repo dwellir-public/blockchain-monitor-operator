@@ -17,6 +17,7 @@ import pycurl
 # pycurl docs: http://pycurl.io/docs/latest/index.html
 from io import BytesIO
 import re
+import websocket
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -28,9 +29,10 @@ def main():
     """Monitor the blockchains."""
 
     # Set up logging
-    logger.setLevel(logging.DEBUG)
+    # TODO: make log level load from config
+    logger.setLevel(logging.INFO)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.INFO)
     console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
     logger.addHandler(console_handler)
 
@@ -109,8 +111,7 @@ def main():
 
         timestamp = datetime.utcnow()
         records = []
-        counter_warnings = 0
-        counter_ws = 0
+        counter = {"http": 0, "warning": 0, "ws": 0}
         # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
@@ -124,7 +125,9 @@ def main():
                         logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
                         continue
                     if 'ws' in url:
-                        counter_ws = counter_ws + 1
+                        counter['ws'] = counter['ws'] + 1
+                    if 'http' in url:
+                        counter['http'] = counter['http'] + 1
                     # TODO: clean up the point creation
                     if http_code != 200 and url not in block_height_diffs[chain]:
                         logger.warning("HTTP code [%s] for %s, something went wrong with the request.", http_code, url)
@@ -135,7 +138,7 @@ def main():
                             block_height_diff=None,
                             timestamp=timestamp,
                             http_code=http_code)
-                        counter_warnings = counter_warnings + 1
+                        counter['warning'] = counter['warning'] + 1
                     else:
                         brp = block_height_request_point(
                             chain=chain,
@@ -162,9 +165,10 @@ def main():
                            .time(timestamp))
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - loop_start_time
-        logger.info("Processed endpoints: %s/%s", len(all_results), len(all_endpoints))
-        logger.info("Endpoints warning: %s", counter_warnings)
-        logger.info("Endpoints with ws: %s", counter_ws)
+        logger.info("Processed endpoints:  %s/%s", len(all_results), len(all_endpoints))
+        logger.info("No. request warnings: %s", counter['warning'])
+        logger.info("Endpoints using http: %s", counter['http'])
+        logger.info("Endpoints using ws:   %s", counter['ws'])
         logger.info("Loop time: %.3fs", loop_time)
         mean_time = loop_time / len(all_endpoints)
         logger.info("Mean time: %.3fs", mean_time)
@@ -377,27 +381,40 @@ def get_handle(headers: list) -> pycurl.Curl:
     return c
 
 
-# TODO: remove/use the commented measurements
-def get_result(c: pycurl.Curl) -> dict:
+def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) -> dict:
+    """
+    Gets the block height request result from a Curl object.
+
+    c - The Curl object
+    block_height - Override parameter, usually from using websocket
+    http_code - Override parameter, usually from using websocket
+
+    return - A dict with info for the database
+    """
     total_time = c.getinfo(pycurl.TOTAL_TIME)
+    # TODO: remove/use the commented measurements
     # dns_time = c.getinfo(pycurl.NAMELOOKUP_TIME)
     # connect_time = c.getinfo(pycurl.CONNECT_TIME)
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
     # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
-    http_code = c.getinfo(pycurl.HTTP_CODE)
-    try:
-        response_json = c.response_buffer.getvalue().decode('utf-8')
-        response_dict = json.loads(response_json)
-    except json.JSONDecodeError as e:
-        logger.warning("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
-                       c.url, response_json, http_code, e)
-        return {
-            'chain': c.chain,
-            'url': c.url,
-            'http_code': parse_error_code(response_json) if 'error code:' in str(response_json) else None,
-            'latest_block_height': None,
-            'time_total': None
-        }
+    if not block_height:
+        try:
+            response_json = c.response_buffer.getvalue().decode('utf-8')
+            response_dict = json.loads(response_json)
+            block_height = get_highest_block(c.api_class, response_dict)
+        except json.JSONDecodeError as e:
+            logger.warning("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
+                           c.url, response_json, http_code, e)
+            return {
+                'chain': c.chain,
+                'url': c.url,
+                'http_code': parse_error_code(response_json) if 'error code:' in str(response_json) else None,
+                'latest_block_height': None,
+                'time_total': None
+            }
+    if not http_code:
+        http_code = c.getinfo(pycurl.HTTP_CODE)
+
     return {
         'chain': c.chain,
         'url': c.url,
@@ -407,8 +424,19 @@ def get_result(c: pycurl.Curl) -> dict:
         # 'time_connect': connect_time,
         # 'time_pretransfer': pretransfer_time,
         # 'time_starttransfer': starttransfer_time,
-        'latest_block_height': get_highest_block(c.api_class, response_dict)
+        'latest_block_height': block_height
     }
+
+
+def make_ws_request(url: str, api_class: str) -> (int, int):
+    ws = websocket.create_connection(url)
+    data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
+    ws.send(data)
+    response = json.loads(ws.recv())
+    block_height = get_highest_block(api_class, response)
+    http_code = 200
+    ws.close()
+    return block_height, http_code
 
 
 # TODO: rename after cleanup
@@ -464,12 +492,20 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 c.chain = ""
                 c.url = ""
                 cm.remove_handle(c)
-                # TODO: add to logger, but not on per default?
-                # print("Success:", c.url, c.getinfo(pycurl.EFFECTIVE_URL))
+                logger.debug("Success for URL: [%s], msg: [%s]", c.url, c.getinfo(pycurl.EFFECTIVE_URL))
                 freelist.append(c)
             for c, errno, errmsg in err_list:
-                logger.error("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s]", c.url, errno, errmsg)
-                results.append(get_result(c))
+                logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s]", c.url, errno, errmsg)
+                # TODO: implement a better way of handling websockets, this is only a "retry if fail"
+                if errno == 1 and "wss" in errmsg:
+                    try:
+                        wss_block_height, wss_http_code = make_ws_request(c.url, c.api_class)
+                    except Exception as e:
+                        # TODO: downgrade log from error when selecting specific Exception/s to use
+                        logger.error("Failed WS connection for URL: [%s], error [%s]", url, e)
+                        wss_block_height = None
+                        wss_http_code = None
+                results.append(get_result(c, wss_block_height, wss_http_code))
                 c.api_class = ""
                 c.chain = ""
                 c.url = ""
