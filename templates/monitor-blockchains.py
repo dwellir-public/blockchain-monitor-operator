@@ -66,7 +66,7 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         time_endpoints_loaded = time.time()
-        concurrent_connections = 8
+        concurrent_connections = 12
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=concurrent_connections)
         time_results_fetched = time.time()
 
@@ -98,14 +98,14 @@ def main():
                 block_height_diffs[chain][rpc[0]] = max_height - rpc[1]
         time_block_calc_done = time.time()
 
+        logger.info("- PARSE RESULTS")
         timestamp = datetime.utcnow()
         records = []
-        loop_counter = {'failed_requests': 0, 'http': 0, 'ws': 0, 'times_http': [], 'times_ws': []}
+        loop_counter = {'failed_requests': 0, 'http': 0, 'ws': 0}
         # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
             if result:
-                time_result_start = time.time()
                 try:
                     try:
                         http_code = result.get('http_code', -2)
@@ -116,16 +116,18 @@ def main():
                         continue
                     if 'http' in url:
                         loop_counter['http'] = loop_counter['http'] + 1
-                    if 'ws' in url:
+                    elif 'ws' in url:
                         loop_counter['ws'] = loop_counter['ws'] + 1
                     # TODO: clean up the point creation
-                    if http_code != 200 and url not in block_height_diffs[chain]:
+                    # TODO: handle code 429 specially, usually means rate limit hit
+                    block_height_diff = get_block_height_diff(block_height_diffs, chain, url)
+                    if http_code != 200:
                         logger.warning("HTTP code [%s] for %s, something went wrong with the request.", http_code, url)
                         brp = block_height_request_point(
                             chain=chain,
                             url=url,
                             data=result,
-                            block_height_diff=None,
+                            block_height_diff=block_height_diff,
                             timestamp=timestamp,
                             http_code=http_code)
                         loop_counter['failed_requests'] = loop_counter['failed_requests'] + 1
@@ -134,20 +136,17 @@ def main():
                             chain=chain,
                             url=url,
                             data=result,
-                            block_height_diff=block_height_diffs[chain][url],
+                            block_height_diff=block_height_diff,
                             timestamp=timestamp,
                             http_code=http_code)
                         # TODO: re-evaluate how sustainable logging might be solved for this app (this produces too many logs)
                         # logger.info("Writing to influx %s", brp)
                     records.append(brp)
+                except KeyError as e:
+                    logger.error("KeyError while accessing results for [%s], results: [%s], key: [%s]", url, result, str(e))
                 except Exception as e:
                     logger.error("%s while accessing results for [%s], results: [%s], error: [%s]", {
                                  e.__class__.__name__}, url, result, str(e))
-                time_result_end = time.time()
-                if 'http' in url:
-                    loop_counter['times_http'].append(time_result_end - time_result_start)
-                if 'ws' in url:
-                    loop_counter['times_ws'].append(time_result_end - time_result_start)
             else:
                 logger.warning("Couldn't get results from [%s]. Skipping.", url)
         time_results_parsed = time.time()
@@ -164,7 +163,7 @@ def main():
 
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - time_loop_start
-        logger.info("Loop - Successful requests:  %s/%s", len(all_results), len(all_endpoints))
+        logger.info("Loop - Processed requests:   %s/%s", len(all_results), len(all_endpoints))
         logger.info("Loop - Failed requests:      %s", loop_counter['failed_requests'])
         logger.info("Loop - Endpoints using http: %s", loop_counter['http'])
         logger.info("Loop - Endpoints using ws:   %s", loop_counter['ws'])
@@ -315,14 +314,35 @@ def get_json_rpc_method(api_class: str) -> str:
     raise ValueError('Invalid api_class:', api_class)
 
 
+def get_block_height_diff(diffs: dict, chain: str, url: str) -> int:
+    if chain not in diffs.keys():
+        return None
+    if url not in diffs[chain].keys():
+        return None
+    return diffs[chain][url]
+
+
 def get_highest_block(api_class: str, response: dict) -> int:
-    if api_class == 'substrate':
-        return int(response['result']['number'], 16)
-    if api_class == 'ethereum':
-        return int(response['result'], 16)
-    if api_class == 'starknet':
-        return int(response['result'])
+    try:
+        if api_class == 'substrate':
+            return int(response['result']['number'], 16)
+        if api_class == 'ethereum':
+            return int(response['result'], 16)
+        if api_class == 'starknet':
+            return int(response['result'])
+    except Exception as e:
+        logger.error(f'{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s', e)
+        raise e
     raise ValueError('Invalid api_class:', api_class)
+
+
+def validate_response(response: dict) -> bool:
+    if 'result' in response.keys():
+        return True
+    if 'error' in response.keys():
+        # TODO: catch codes here? e.g. 'code': -32004 for hitting daily relay limit
+        logger.error("Error in request response: %s", response['error'])
+    return False
 
 
 def parse_error_code(message: str) -> int:
@@ -368,10 +388,9 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
     # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
     if not block_height:
+        response_json = c.response_buffer.getvalue().decode('utf-8')
         try:
-            response_json = c.response_buffer.getvalue().decode('utf-8')
             response_dict = json.loads(response_json)
-            block_height = get_highest_block(c.api_class, response_dict)
         except json.JSONDecodeError as e:
             logger.warning("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
                            c.url, response_json, http_code, e)
@@ -382,6 +401,8 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
                 'latest_block_height': None,
                 'time_total': None
             }
+        block_height = get_highest_block(c.api_class, response_dict) if validate_response(response_dict) else None
+
     if not http_code:
         http_code = c.getinfo(pycurl.HTTP_CODE)
 
@@ -390,20 +411,16 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
         'url': c.url,
         'http_code': http_code,
         'time_total': total_time,
-        # 'time_dns': dns_time,
-        # 'time_connect': connect_time,
-        # 'time_pretransfer': pretransfer_time,
-        # 'time_starttransfer': starttransfer_time,
         'latest_block_height': block_height
     }
 
 
-def make_ws_request(url: str, api_class: str) -> (int, int):
+def make_ws_request(url: str, api_class: str) -> tuple[int, int]:
     ws = websocket.create_connection(url)
     data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
     ws.send(data)
     response = json.loads(ws.recv())
-    block_height = get_highest_block(api_class, response)
+    block_height = get_highest_block(api_class, response) if validate_response(response) else None
     http_code = 200
     ws.close()
     return block_height, http_code
@@ -462,21 +479,22 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 c.chain = ""
                 c.url = ""
                 cm.remove_handle(c)
-                logger.debug("Success for URL: [%s], msg: [%s]", c.url, c.getinfo(pycurl.EFFECTIVE_URL))
+                logger.debug("Success for URL: [%s]", c.getinfo(pycurl.EFFECTIVE_URL))
                 freelist.append(c)
             for c, errno, errmsg in err_list:
-                logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s]. Making a websocket request instead!",
-                             c.url, errno, errmsg)
-                # TODO: implement a better way of handling websockets, this is only a "retry if fail"
+                logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s].", c.url, errno, errmsg)
+                # TODO: handle err-num 7 (no route to host), 28 (connection timed out)
                 # TODO: keep parallelization in solution!
+                wss_block_height, wss_http_code = None, None
+                # TODO: implement a better way of handling websockets, this is only a "retry if fail"
                 if errno == 1 and "wss" in errmsg:
+                    logger.debug("Trying websocket connection because of error: %s", errmsg)
                     try:
                         wss_block_height, wss_http_code = make_ws_request(c.url, c.api_class)
                     except Exception as e:
                         # TODO: downgrade log from error when selecting specific Exception/s to use
+                        # TODO: use "if 429 in e:" to log a too many requests response
                         logger.error("Failed WS connection for URL: [%s], error [%s]", url, e)
-                        wss_block_height = None
-                        wss_http_code = None
                 results.append(get_result(c, wss_block_height, wss_http_code))
                 c.api_class = ""
                 c.chain = ""
@@ -489,7 +507,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
         # Currently no more I/O is pending, could do something in the meantime
         # (display a progress bar, etc.).
         # We just call select() to sleep until some more data is available.
-        cm.select(1.0)
+        cm.select(0.2)
     # Cleanup
     for c in cm.handles:
         c.close()
