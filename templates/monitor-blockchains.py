@@ -15,6 +15,7 @@ import pycurl
 from io import BytesIO
 import re
 import websocket
+from statistics import mean
 
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
@@ -59,6 +60,7 @@ def main():
         logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
         sys.exit(1)
 
+    program_counter = {'loop_time': [], 'failed_requests': []}
     while True:
         logger.info("- MONITOR LOOP START")
         loop_start_time = time.time()
@@ -97,7 +99,7 @@ def main():
 
         timestamp = datetime.utcnow()
         records = []
-        counter = {"http": 0, "warning": 0, "ws": 0}
+        loop_counter = {'failed_requests': 0, 'http': 0, 'ws': 0}
         # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
@@ -111,9 +113,9 @@ def main():
                         logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
                         continue
                     if 'ws' in url:
-                        counter['ws'] = counter['ws'] + 1
+                        loop_counter['ws'] = loop_counter['ws'] + 1
                     if 'http' in url:
-                        counter['http'] = counter['http'] + 1
+                        loop_counter['http'] = loop_counter['http'] + 1
                     # TODO: clean up the point creation
                     if http_code != 200 and url not in block_height_diffs[chain]:
                         logger.warning("HTTP code [%s] for %s, something went wrong with the request.", http_code, url)
@@ -124,7 +126,7 @@ def main():
                             block_height_diff=None,
                             timestamp=timestamp,
                             http_code=http_code)
-                        counter['warning'] = counter['warning'] + 1
+                        loop_counter['failed_requests'] = loop_counter['failed_requests'] + 1
                     else:
                         brp = block_height_request_point(
                             chain=chain,
@@ -151,18 +153,22 @@ def main():
                            .time(timestamp))
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - loop_start_time
-        logger.info("Processed endpoints:  %s/%s", len(all_results), len(all_endpoints))
-        logger.info("No. request warnings: %s", counter['warning'])
-        logger.info("Endpoints using http: %s", counter['http'])
-        logger.info("Endpoints using ws:   %s", counter['ws'])
-        logger.info("Loop time: %.3fs", loop_time)
+        logger.info("Loop - Successful requests:  %s/%s", len(all_results), len(all_endpoints))
+        logger.info("Loop - Failed requests:      %s", loop_counter['failed_requests'])
+        logger.info("Loop - Endpoints using http: %s", loop_counter['http'])
+        logger.info("Loop - Endpoints using ws:   %s", loop_counter['ws'])
         mean_time = loop_time / len(all_endpoints)
-        logger.info("Mean time: %.3fs", mean_time)
+        logger.info("Loop - Processing time:      %.3fs (mean %.3fs)", loop_time, mean_time)
+        program_counter['loop_time'].append(loop_time)
+        program_counter['failed_requests'].append(loop_counter['failed_requests'])
+        logger.info("Program - Loops since program start: %s", len(program_counter['loop_time']))
+        logger.info("Program - Mean loop processing time: %.3fs", mean(program_counter['loop_time']))
+        logger.info("Program - Average failed requests:   %.2f", mean(program_counter['failed_requests']))
         logger.info("Writing to InfluxDB")
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
         logger.info("Sleeping for %s seconds...", request_interval)
         # Sleep between making requests to avoid triggering rate limits.
-        time.sleep(request_interval)  # TODO: consider replacing with the schedule package
+        time.sleep(request_interval)
 
 
 def test_influxdb_connection(url: str, token: str, org: str) -> bool:
