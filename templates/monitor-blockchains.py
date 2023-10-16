@@ -66,7 +66,7 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         time_endpoints_loaded = time.time()
-        concurrent_connections = 12
+        concurrent_connections = 10
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=concurrent_connections)
         time_results_fetched = time.time()
 
