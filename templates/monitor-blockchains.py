@@ -20,19 +20,13 @@ from statistics import mean
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
+logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
 
 def main():
     """Monitor the blockchains."""
-
-    # Set up logging
-    # TODO: make log level load from config
-    logger.setLevel(logging.DEBUG)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
-    console_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
-    logger.addHandler(console_handler)
+    logger.info("Blockchain monitor started.")
 
     # Load config
     config_file = Path.cwd() / 'config.json'
@@ -40,7 +34,23 @@ def main():
         raise FileNotFoundError("Config file not found:", config_file)
     with open(config_file, encoding='utf-8') as f:
         config = json.load(f)
-    # TODO: add validation of config file through schema?
+    logger.info("Config file loaded from %s:", config_file)
+    logger.info(config)
+
+    # Update log level
+    try:
+        log_level = config['LOG_LEVEL'].upper()
+        if log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+            raise ValueError("Invalid log level.")
+    except ValueError as e:
+        log_level = 'INFO'  # Default
+        logger.warning("Log level error [%s], level set to 'INFO'.", e)
+    logger.setLevel(log_level)
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setLevel(log_level)
+    logger.addHandler(console_handler)
+
+    # Set up variables from config
     influxdb = {
         'url': config['INFLUXDB_URL'],
         'token': config['INFLUXDB_TOKEN'],
@@ -54,11 +64,11 @@ def main():
     if not test_influxdb_connection(influxdb['url'], influxdb['token'], influxdb['org']):
         logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
         sys.exit(1)
-
     # TODO: rename RPC_FLASK_API to RPC_ENDPOINT_DB_URL
     if not test_connection(config['RPC_FLASK_API'] + '/all/chains'):
         logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
         sys.exit(1)
+    logger.info("Connection tested.")
 
     program_counter = {'loop_time': [], 'failed_requests': []}
     while True:
@@ -66,7 +76,7 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
         time_endpoints_loaded = time.time()
-        concurrent_connections = 10
+        concurrent_connections = 8
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=concurrent_connections)
         time_results_fetched = time.time()
 

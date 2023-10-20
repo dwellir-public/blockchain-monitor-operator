@@ -20,9 +20,21 @@ def install_python_dependencies(requirements_file: Path) -> None:
     sp.run(['sudo', 'pip3', 'install', '-r', requirements_file], check=True)
 
 
+def install_files():
+    shutil.copy('templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
+    install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
+
+
+def install_service_file(source_path: str, service_name: str) -> None:
+    target_path = Path(f'/etc/systemd/system/{service_name.lower()}.service')
+    shutil.copyfile(source_path, target_path)
+    sp.run(['systemctl', 'daemon-reload'], check=False)
+
+
 def setup_influxdb(bucket: str, org: str, username: str, password: str, retention: str) -> None:
-    if not bucket or not org:
-        raise ValueError("Values for 'bucket' and 'org' are missing!")
+    for arg in [bucket, org, username, password, retention]:
+        if not arg:
+            raise ValueError("Argument in setup_influxdb() missing!")
     sp.run(['systemctl', 'enable', 'influxdb', '--now'], check=True)
     setup_command = ['influx', 'setup']
     setup_command += ['--bucket', 'default']
@@ -54,14 +66,9 @@ def update_monitor_config_file(config: ConfigData) -> None:
     monitoring_config['REQUEST_INTERVAL'] = config.get('request-interval')
     monitoring_config['RPC_FLASK_API'] = config.get('rpc-endpoint-api-url')
     monitoring_config['RPC_CACHE_MAX_AGE'] = config.get('rpc-endpoint-cache-age')
+    monitoring_config['LOG_LEVEL'] = config.get('log-level')
     with open(c.MONITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
         json.dump(monitoring_config, f)
-
-
-def install_service_file(source_path: str, service_name: str) -> None:
-    target_path = Path(f'/etc/systemd/system/{service_name.lower()}.service')
-    shutil.copyfile(source_path, target_path)
-    sp.run(['systemctl', 'daemon-reload'], check=False)
 
 
 def start_service(service_name: str) -> None:

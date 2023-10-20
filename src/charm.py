@@ -22,24 +22,15 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        # Hooks
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
-
+        # Actions
         self.framework.observe(self.on.get_influxdb_info_action, self._get_influxdb_info_action)
-
-    def _on_config_changed(self, event: ops.ConfigChangedEvent):
-        """Handle changed configuration."""
-        try:
-            util.update_monitor_config_file(self.config)
-            util.restart_service(c.SERVICE_NAME)
-        except FileNotFoundError as e:
-            self.unit.status = BlockedStatus(str(e))
-            event.defer()
-            return
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
@@ -60,12 +51,18 @@ class BlockchainMonitorCharm(ops.CharmBase):
             event.defer()
             return
         self.unit.status = MaintenanceStatus('Installing script and service')
-        self.install_files()
+        util.install_files()
         self.unit.status = ActiveStatus('Installation complete')
 
-    def install_files(self):
-        shutil.copy(self.charm_dir / 'templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
-        util.install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
+    def _on_config_changed(self, event: ops.ConfigChangedEvent):
+        """Handle changed configuration."""
+        try:
+            util.update_monitor_config_file(self.config)
+            util.restart_service(c.SERVICE_NAME)
+        except FileNotFoundError as e:
+            self.unit.status = BlockedStatus(str(e))
+            event.defer()
+            return
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
@@ -85,8 +82,10 @@ class BlockchainMonitorCharm(ops.CharmBase):
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
         util.stop_service(c.SERVICE_NAME)
-        self.install_files()
+        util.install_files()
         util.start_service(c.SERVICE_NAME)
+
+    # # # Actions
 
     def _get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
         """Gather and return info on the monitor's InfluxDB database."""

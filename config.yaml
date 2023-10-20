@@ -19,6 +19,13 @@ options:
       The sleep period (seconds) between two request batches.
     default: 12
     type: int
+  log-level:
+    description: |
+      The log level used in the monitor script.
+
+      Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    default: "INFO"
+    type: string
 
   # InfluxDB settings
   influxdb-url:
@@ -26,6 +33,7 @@ options:
       The URL to the InfluxDB database where blockchain request results will be stored.
     default: http://localhost:8086
     type: string
+  # Below here are only used at deploy, if changes are needed later they will have to be done manually
   influxdb-bucket:
     description: |
       The bucket name used when setting up InfluxDB.
@@ -38,7 +46,6 @@ options:
       Note: supplying this is required when deploying the charm!
     default: ""
     type: string
-  # Only used at deploy, if changes are needed later they will have to be done manually
   influxdb-username:
     description: |
       The username used when setting up InfluxDB.
