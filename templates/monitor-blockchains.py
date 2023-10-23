@@ -162,7 +162,7 @@ def main():
         for chain, max_height in chain_max_heights.items():
             records.append(Point("block_height_request")
                            .tag("chain", chain)
-                           .tag("url", "Max over time")
+                           .tag("url", "zzz - Max over time")  # 'zzz' to sort it last, is removed in Grafana
                            .field("block_height", max_height)
                            .time(timestamp))
         write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)

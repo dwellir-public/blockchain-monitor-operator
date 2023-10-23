@@ -264,7 +264,6 @@
       "title": "Block Height",
       "transformations": [
         {
-          "disabled": true,
           "id": "joinByField",
           "options": {
             "byField": "Time",
@@ -272,11 +271,12 @@
           }
         },
         {
-          "disabled": true,
           "id": "organize",
           "options": {
-            "indexByName": {
-              "Max over time": 100
+            "excludeByName": {},
+            "indexByName": {},
+            "renameByName": {
+              "zzz - Max over time": "Max over time"
             }
           }
         }
