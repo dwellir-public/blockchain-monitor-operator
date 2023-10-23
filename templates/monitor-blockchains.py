@@ -181,6 +181,7 @@ def main():
         logger.info("Loop - Processing time:      %.3fs (mean %.3fs)", loop_time, mean_time)
         program_counter['loop_time'].append(loop_time)
         program_counter['failed_requests'].append(loop_counter['failed_requests'])
+        # TODO: make these counters only average last 1/6/24h? Average over longer times might mean little
         logger.info("Program - Loops since program start: %s", len(program_counter['loop_time']))
         logger.info("Program - Mean loop processing time: %.3fs", mean(program_counter['loop_time']))
         logger.info("Program - Average failed requests:   %.2f", mean(program_counter['failed_requests']))
