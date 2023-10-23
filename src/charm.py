@@ -6,7 +6,7 @@
 
 
 import logging
-import shutil
+import time
 
 import ops
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus, WaitingStatus
@@ -22,24 +22,17 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def __init__(self, *args):
         super().__init__(*args)
+        # Hooks
         self.framework.observe(self.on.config_changed, self._on_config_changed)
         self.framework.observe(self.on.install, self._on_install)
         self.framework.observe(self.on.start, self._on_start)
         self.framework.observe(self.on.stop, self._on_stop)
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
-
-        self.framework.observe(self.on.get_influxdb_info_action, self._get_influxdb_info_action)
-
-    def _on_config_changed(self, event: ops.ConfigChangedEvent):
-        """Handle changed configuration."""
-        try:
-            util.update_monitor_config_file(self.config)
-            util.restart_service(c.SERVICE_NAME)
-        except FileNotFoundError as e:
-            self.unit.status = BlockedStatus(str(e))
-            event.defer()
-            return
+        # Actions
+        self.framework.observe(self.on.get_influxdb_info_action, self._on_get_influxdb_info_action)
+        self.framework.observe(self.on.restart_bc_monitor_service_action, self._on_restart_bc_monitor_service_action)
+        self.framework.observe(self.on.restart_influxdb_service_action, self._on_restart_influxdb_service_action)
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
@@ -60,35 +53,54 @@ class BlockchainMonitorCharm(ops.CharmBase):
             event.defer()
             return
         self.unit.status = MaintenanceStatus('Installing script and service')
-        self.install_files()
+        util.install_files()
         self.unit.status = ActiveStatus('Installation complete')
 
-    def install_files(self):
-        shutil.copy(self.charm_dir / 'templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
-        util.install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
+    def _on_config_changed(self, event: ops.ConfigChangedEvent):
+        """Handle changed configuration."""
+        try:
+            util.update_monitor_config_file(self.config)
+            util.restart_service(c.SERVICE_NAME_BC)
+        except FileNotFoundError as e:
+            self.unit.status = BlockedStatus(str(e))
+            event.defer()
+            return
+        self._update_status()
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
-        util.start_service(c.SERVICE_NAME)
+        util.start_service(c.SERVICE_NAME_BC)
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
-        util.stop_service(c.SERVICE_NAME)
+        util.stop_service(c.SERVICE_NAME_BC)
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
         """Handle status update."""
-        if not util.service_running(c.SERVICE_NAME):
-            self.unit.status = WaitingStatus("Service not yet started")
-            return
-        self.unit.status = ActiveStatus("Service running")
+        self._update_status()
+
+    def _update_status(self):
+        bc_service = util.service_running(c.SERVICE_NAME_BC)
+        influx_service = util.service_running(c.SERVICE_NAME_INFLUX)
+        msg_dict = {True: "Running", False: "Stopped"}
+        msg = f"bc-monitor: {msg_dict[bc_service]}, InfluxDB: {msg_dict[influx_service]}"
+        if all([bc_service, influx_service]):
+            self.unit.status = ActiveStatus(msg)
+        elif any([bc_service, influx_service]):
+            self.unit.status = WaitingStatus(msg)
+        else:
+            self.unit.status = BlockedStatus(msg)
 
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
-        util.stop_service(c.SERVICE_NAME)
-        self.install_files()
-        util.start_service(c.SERVICE_NAME)
+        util.stop_service(c.SERVICE_NAME_BC)
+        util.install_files()
+        util.start_service(c.SERVICE_NAME_BC)
+        self._update_status()
 
-    def _get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
+    # # # Actions
+
+    def _on_get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
         """Gather and return info on the monitor's InfluxDB database."""
         event.set_results(results={'bucket': self.config.get('influxdb-bucket')})
         event.set_results(results={'org': self.config.get('influxdb-org')})
@@ -98,8 +110,23 @@ class BlockchainMonitorCharm(ops.CharmBase):
             logger.warning(e)
             event.fail("Could not read InfluxDB token from file")
 
-# TODO: add action to restart InfluxDB service (and bc-monitor while at it)
-# TODO: add action to check endpointdb API status (perhaps???)
+    def _on_restart_bc_monitor_service_action(self, event: ops.ActionEvent) -> None:
+        """ Restart the Ubuntu service running the blockchain monitor app. """
+        util.restart_service(c.SERVICE_NAME_BC)
+        time.sleep(1)
+        if not util.service_running(c.SERVICE_NAME_BC):
+            event.fail("Could not restart bc-monitor service")
+        self.unit.status = ops.ActiveStatus("bc-monitor service restarted")
+
+    def _on_restart_influxdb_service_action(self, event: ops.ActionEvent) -> None:
+        """ Restart the Ubuntu service running InfluxDB. """
+        util.restart_service(c.SERVICE_NAME_INFLUX)
+        time.sleep(1)
+        if not util.service_running(c.SERVICE_NAME_INFLUX):
+            event.fail("Could not restart InfluxDB service")
+        self.unit.status = ops.ActiveStatus("InfluxDB service restarted")
+
+# TODO: add action to get info from endpointdb API (status of Flask endpoint, number of chains/RPC:s, time since update?)
 
 
 if __name__ == "__main__":  # pragma: nocover

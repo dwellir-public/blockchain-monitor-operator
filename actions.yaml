@@ -1,2 +1,6 @@
 get-influxdb-info:
-  description: Get the InfluxDB info needed to access it, e.g. as a data source in Grafana
+  description: Get the InfluxDB info needed to access it, e.g. as a data source in Grafana.
+restart-bc-monitor-service:
+  description: Restarts the service running the Blockchain Monitor app.
+restart-influxdb-service:
+  description: Restarts the service running the InfluxDB database. Use with caution!

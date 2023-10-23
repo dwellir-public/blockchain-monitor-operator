@@ -597,7 +597,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
-      "description": "Exit code reported by the Blockchain Monitor script. Code 0: no issues, 5: no response from node, other non-zero codes: unknown issue, check script output.",
+      "description": "HTTP code reported by the Blockchain Monitor script. Code > 0: HTTP interpretation. Code < 0: unknown issue, check charm log.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -699,11 +699,11 @@
             "uid": "${DS_INFLUXDB-BC-MONITOR}"
           },
           "hide": false,
-          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"exit_code\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield(name: \"BlockDiff\")",
+          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"http_code\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield(name: \"BlockDiff\")",
           "refId": "A"
         }
       ],
-      "title": "Exit code",
+      "title": "HTTP Code",
       "transformations": [],
       "type": "timeseries"
     }

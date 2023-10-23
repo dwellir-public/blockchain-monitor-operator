@@ -11,14 +11,27 @@ options:
     type: string
   rpc-endpoint-cache-age:
     description: |
-      The maximum length in seconds to use the cached RPC endpoint values before attempting an update.
+      The max time (seconds) to use the cached RPC endpoints before attempting an update.
     default: 60
     type: int
   request-interval:
     description: |
-      The organization name used when setting up InfluxDB.
-    default: 10
+      The sleep period (seconds) between two request batches.
+    default: 12
     type: int
+  request-concurrency:
+    description: |
+      The number of concurrent requests being made to RPC endpoints.
+      Note: values above 12 have seen a degradation in performance.
+    default: 8
+    type: int
+  log-level:
+    description: |
+      The log level used in the monitor script.
+
+      Valid levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+    default: "INFO"
+    type: string
 
   # InfluxDB settings
   influxdb-url:
@@ -26,6 +39,7 @@ options:
       The URL to the InfluxDB database where blockchain request results will be stored.
     default: http://localhost:8086
     type: string
+  # Below here are only used at deploy, if changes are needed later they will have to be done manually
   influxdb-bucket:
     description: |
       The bucket name used when setting up InfluxDB.
@@ -38,7 +52,6 @@ options:
       Note: supplying this is required when deploying the charm!
     default: ""
     type: string
-  # Only used at deploy, if changes are needed later they will have to be done manually
   influxdb-username:
     description: |
       The username used when setting up InfluxDB.
