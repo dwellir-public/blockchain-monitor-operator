@@ -56,14 +56,14 @@ def main():
     }
     cache_max_age = config['RPC_CACHE_MAX_AGE']
     request_interval = config['REQUEST_INTERVAL']
+    rpc_endpoint_db_url = config['RPC_ENDPOINT_DB_URL']
 
     # Test connection to influx before attempting to start
     if not test_influxdb_connection(influxdb['url'], influxdb['token'], influxdb['org']):
         logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
         sys.exit(1)
-    # TODO: rename RPC_FLASK_API to RPC_ENDPOINT_DB_URL
-    if not test_connection(config['RPC_FLASK_API'] + '/all/chains'):
-        logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", config['RPC_FLASK_API'])
+    if not test_connection(rpc_endpoint_db_url + '/all/chains'):
+        logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", rpc_endpoint_db_url)
         sys.exit(1)
     logger.info("Connection tested.")
 
@@ -71,7 +71,7 @@ def main():
     while True:
         logger.info("- MONITOR LOOP START")
         time_loop_start = time.time()
-        all_endpoints = load_endpoints(config['RPC_FLASK_API'], cache_max_age)
+        all_endpoints = load_endpoints(rpc_endpoint_db_url, cache_max_age)
         time_endpoints_loaded = time.time()
         concurrent_connections = 8
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=concurrent_connections)

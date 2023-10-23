@@ -64,7 +64,7 @@ def update_monitor_config_file(config: ConfigData) -> None:
     monitoring_config['INFLUXDB_URL'] = config.get('influxdb-url')
     monitoring_config['INFLUXDB_TOKEN'] = get_influxdb_token()
     monitoring_config['REQUEST_INTERVAL'] = config.get('request-interval')
-    monitoring_config['RPC_FLASK_API'] = config.get('rpc-endpoint-api-url')
+    monitoring_config['RPC_ENDPOINT_DB_URL'] = config.get('rpc-endpoint-api-url')
     monitoring_config['RPC_CACHE_MAX_AGE'] = config.get('rpc-endpoint-cache-age')
     monitoring_config['LOG_LEVEL'] = config.get('log-level')
     with open(c.MONITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
