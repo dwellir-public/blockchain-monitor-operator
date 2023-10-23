@@ -58,32 +58,43 @@ class BlockchainMonitorCharm(ops.CharmBase):
         """Handle changed configuration."""
         try:
             util.update_monitor_config_file(self.config)
-            util.restart_service(c.SERVICE_NAME)
+            util.restart_service(c.SERVICE_NAME_BC)
         except FileNotFoundError as e:
             self.unit.status = BlockedStatus(str(e))
             event.defer()
             return
+        self._update_status()
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
-        util.start_service(c.SERVICE_NAME)
+        util.start_service(c.SERVICE_NAME_BC)
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
-        util.stop_service(c.SERVICE_NAME)
+        util.stop_service(c.SERVICE_NAME_BC)
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
         """Handle status update."""
-        if not util.service_running(c.SERVICE_NAME):
-            self.unit.status = WaitingStatus("Service not yet started")
-            return
-        self.unit.status = ActiveStatus("Service running")
+        self._update_status()
+
+    def _update_status(self):
+        bc_service = util.service_running(c.SERVICE_NAME_BC)
+        influx_service = util.service_running(c.SERVICE_NAME_INFLUX)
+        msg_dict = {True: "Running", False: "Stopped"}
+        msg = f"bc-monitor: {msg_dict[bc_service]}, InfluxDB: {msg_dict[influx_service]}"
+        if all([bc_service, influx_service]):
+            self.unit.status = ActiveStatus(msg)
+        elif any([bc_service, influx_service]):
+            self.unit.status = WaitingStatus(msg)
+        else:
+            self.unit.status = BlockedStatus(msg)
 
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
-        util.stop_service(c.SERVICE_NAME)
+        util.stop_service(c.SERVICE_NAME_BC)
         util.install_files()
-        util.start_service(c.SERVICE_NAME)
+        util.start_service(c.SERVICE_NAME_BC)
+        self._update_status()
 
     # # # Actions
 

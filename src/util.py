@@ -22,7 +22,7 @@ def install_python_dependencies(requirements_file: Path) -> None:
 
 def install_files():
     shutil.copy('templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
-    install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME}.service', c.SERVICE_NAME)
+    install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service', c.SERVICE_NAME_BC)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:

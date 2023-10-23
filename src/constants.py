@@ -3,7 +3,8 @@
 from pathlib import Path
 
 # Strings
-SERVICE_NAME = 'bc-monitor'
+SERVICE_NAME_BC = 'bc-monitor'
+SERVICE_NAME_INFLUX = 'influxdb'
 MONITOR_SCRIPT_NAME = 'monitor-blockchains.py'
 MONITOR_CONFIG_NAME = 'config.json'
 
