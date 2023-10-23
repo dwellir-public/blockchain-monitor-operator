@@ -46,9 +46,6 @@ def main():
         log_level = 'INFO'  # Default
         logger.warning("Log level error [%s], level set to 'INFO'.", e)
     logger.setLevel(log_level)
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level)
-    logger.addHandler(console_handler)
 
     # Set up variables from config
     influxdb = {
