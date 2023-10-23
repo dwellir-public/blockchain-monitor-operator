@@ -6,7 +6,7 @@
 
 
 import logging
-import shutil
+import time
 
 import ops
 from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus, WaitingStatus
@@ -30,7 +30,9 @@ class BlockchainMonitorCharm(ops.CharmBase):
         self.framework.observe(self.on.update_status, self._on_update_status)
         self.framework.observe(self.on.upgrade_charm, self._on_upgrade_charm)
         # Actions
-        self.framework.observe(self.on.get_influxdb_info_action, self._get_influxdb_info_action)
+        self.framework.observe(self.on.get_influxdb_info_action, self._on_get_influxdb_info_action)
+        self.framework.observe(self.on.restart_bc_monitor_service_action, self._on_restart_bc_monitor_service_action)
+        self.framework.observe(self.on.restart_influxdb_service_action, self._on_restart_influxdb_service_action)
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
@@ -98,7 +100,7 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     # # # Actions
 
-    def _get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
+    def _on_get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
         """Gather and return info on the monitor's InfluxDB database."""
         event.set_results(results={'bucket': self.config.get('influxdb-bucket')})
         event.set_results(results={'org': self.config.get('influxdb-org')})
@@ -108,8 +110,23 @@ class BlockchainMonitorCharm(ops.CharmBase):
             logger.warning(e)
             event.fail("Could not read InfluxDB token from file")
 
-# TODO: add action to restart InfluxDB service (and bc-monitor while at it)
-# TODO: add action to check endpointdb API status (perhaps???)
+    def _on_restart_bc_monitor_service_action(self, event: ops.ActionEvent) -> None:
+        """ Restart the Ubuntu service running the blockchain monitor app. """
+        util.restart_service(c.SERVICE_NAME_BC)
+        time.sleep(1)
+        if not util.service_running(c.SERVICE_NAME_BC):
+            event.fail("Could not restart bc-monitor service")
+        self.unit.status = ops.ActiveStatus("bc-monitor service restarted")
+
+    def _on_restart_influxdb_service_action(self, event: ops.ActionEvent) -> None:
+        """ Restart the Ubuntu service running InfluxDB. """
+        util.restart_service(c.SERVICE_NAME_INFLUX)
+        time.sleep(1)
+        if not util.service_running(c.SERVICE_NAME_INFLUX):
+            event.fail("Could not restart InfluxDB service")
+        self.unit.status = ops.ActiveStatus("InfluxDB service restarted")
+
+# TODO: add action to get info from endpointdb API (status of Flask endpoint, number of chains/RPC:s, time since update?)
 
 
 if __name__ == "__main__":  # pragma: nocover
