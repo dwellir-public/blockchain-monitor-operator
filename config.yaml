@@ -19,6 +19,12 @@ options:
       The sleep period (seconds) between two request batches.
     default: 12
     type: int
+  request-concurrency:
+    description: |
+      The number of concurrent requests being made to RPC endpoints.
+      Note: values above 12 have seen a degradation in performance.
+    default: 8
+    type: int
   log-level:
     description: |
       The log level used in the monitor script.

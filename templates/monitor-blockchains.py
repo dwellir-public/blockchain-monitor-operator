@@ -56,6 +56,7 @@ def main():
     }
     cache_max_age = config['RPC_CACHE_MAX_AGE']
     request_interval = config['REQUEST_INTERVAL']
+    request_concurrency = config['REQUEST_CONCURRENCY']
     rpc_endpoint_db_url = config['RPC_ENDPOINT_DB_URL']
 
     # Test connection to influx before attempting to start
@@ -73,8 +74,7 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(rpc_endpoint_db_url, cache_max_age)
         time_endpoints_loaded = time.time()
-        concurrent_connections = 8
-        all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=concurrent_connections)
+        all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=request_concurrency)
         time_results_fetched = time.time()
 
         # Create block_heights dict
@@ -146,8 +146,7 @@ def main():
                             block_height_diff=block_height_diff,
                             timestamp=timestamp,
                             http_code=http_code)
-                        # TODO: re-evaluate how sustainable logging might be solved for this app (this produces too many logs)
-                        # logger.info("Writing to influx %s", brp)
+                    logger.debug("Writing point to InfluxDB: %s", brp)
                     records.append(brp)
                 except KeyError as e:
                     logger.error("KeyError while accessing results for [%s], results: [%s], key: [%s]", url, result, str(e))
@@ -190,7 +189,7 @@ def main():
         parse_results_time = time_results_parsed - time_block_calc_done
         write_influx_time = time_influxdb_written - time_results_parsed
 
-        logger.debug("Info - Concurrent connections: %s", concurrent_connections)
+        logger.debug("Config - Concurrent connections: %s", request_concurrency)
         logger.debug("Time data - Loading endpoints: %.3fs", endpoints_load_time)
         logger.debug("Time data - Fetching results: %.3fs", fetch_results_time)
         logger.debug("Time data - Block calculations: %.3fs", block_calc_time)
@@ -390,7 +389,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     return - A dict with info for the database
     """
     total_time = c.getinfo(pycurl.TOTAL_TIME)
-    # TODO: remove/use the commented measurements
+    # Time measurements available if needed:
     # dns_time = c.getinfo(pycurl.NAMELOOKUP_TIME)
     # connect_time = c.getinfo(pycurl.CONNECT_TIME)
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
@@ -435,7 +434,6 @@ def make_ws_request(url: str, api_class: str) -> tuple[int, int]:
 
 
 # TODO: rename after cleanup
-# TODO: tweak num_connections
 def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
     """
     Makes a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
@@ -487,7 +485,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 c.chain = ""
                 c.url = ""
                 cm.remove_handle(c)
-                logger.debug("Success for URL: [%s]", c.getinfo(pycurl.EFFECTIVE_URL))
+                logger.debug("Successful curl for URL: [%s]", c.getinfo(pycurl.EFFECTIVE_URL))
                 freelist.append(c)
             for c, errno, errmsg in err_list:
                 logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s].", c.url, errno, errmsg)
