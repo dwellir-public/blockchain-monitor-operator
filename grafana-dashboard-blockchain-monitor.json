@@ -1,4 +1,4 @@
-{
+q{
   "__inputs": [
     {
       "name": "DS_INFLUXDB-BC-MONITOR",
@@ -11,12 +11,6 @@
   ],
   "__elements": {},
   "__requires": [
-    {
-      "type": "panel",
-      "id": "gauge",
-      "name": "Gauge",
-      "version": ""
-    },
     {
       "type": "grafana",
       "id": "grafana",
@@ -58,7 +52,7 @@
       }
     ]
   },
-  "description": "Monitors block height and latency, compared to other RPC in the network, for our chains.",
+  "description": "Monitors block height and latency for a list of publicly accessible endpoints.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
@@ -71,7 +65,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
-      "description": "Difference between each individual RPC node and the current max height of any tracked node. This means that nodes with a difference of zero are furthest ahead.",
+      "description": "Difference between each individual RPC endpoint and the current max height of any measured endpoint. This means that nodes with a difference of zero are furthest ahead.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -177,7 +171,7 @@
           "refId": "A"
         }
       ],
-      "title": "Block height difference",
+      "title": "Block Height Difference",
       "transformations": [],
       "type": "timeseries"
     },
@@ -186,7 +180,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
-      "description": "Block height over time for each tracked node.",
+      "description": "Block height over time for each endpoint.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -269,7 +263,7 @@
           "refId": "A"
         }
       ],
-      "title": "Block height",
+      "title": "Block Height",
       "type": "timeseries"
     },
     {
@@ -277,11 +271,11 @@
         "type": "datasource",
         "uid": "-- Dashboard --"
       },
-      "description": "The maximum latency in the selected time period for each tracked node.",
+      "description": "The mean latency in the selected time period for each tracked endpoint.",
       "fieldConfig": {
         "defaults": {
           "color": {
-            "mode": "palette-classic"
+            "mode": "thresholds"
           },
           "mappings": [],
           "min": 0,
@@ -294,18 +288,19 @@
               },
               {
                 "color": "yellow",
-                "value": 5
+                "value": 0.6
               },
               {
                 "color": "orange",
-                "value": 20
+                "value": 1
               },
               {
                 "color": "red",
-                "value": 50
+                "value": 2
               }
             ]
-          }
+          },
+          "unit": "s"
         },
         "overrides": []
       },
@@ -317,16 +312,18 @@
       },
       "id": 5,
       "options": {
+        "colorMode": "background_solid",
+        "graphMode": "area",
+        "justifyMode": "auto",
         "orientation": "horizontal",
         "reduceOptions": {
           "calcs": [
-            "lastNotNull"
+            "mean"
           ],
           "fields": "",
           "values": false
         },
-        "showThresholdLabels": false,
-        "showThresholdMarkers": true
+        "textMode": "auto"
       },
       "pluginVersion": "9.5.2",
       "targets": [
@@ -339,9 +336,10 @@
           "refId": "A"
         }
       ],
-      "title": "Maximum latency",
+      "title": "Mean Latency",
       "transformations": [
         {
+          "disabled": true,
           "id": "joinByField",
           "options": {
             "byField": "Time",
@@ -349,6 +347,7 @@
           }
         },
         {
+          "disabled": true,
           "id": "reduce",
           "options": {
             "includeTimeField": false,
@@ -372,14 +371,14 @@
           }
         }
       ],
-      "type": "gauge"
+      "type": "stat"
     },
     {
       "datasource": {
         "type": "datasource",
         "uid": "-- Dashboard --"
       },
-      "description": "Shows the maximum block difference in the currently selected time period, as well as the timestamp for when that block difference occurred.",
+      "description": "The maximum block difference in the currently selected time period, and the timestamp for when that occurred.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -453,7 +452,7 @@
           "refId": "A"
         }
       ],
-      "title": "Max block difference",
+      "title": "Max Block Difference",
       "transformations": [
         {
           "id": "joinByField",
@@ -506,7 +505,7 @@
         "type": "influxdb",
         "uid": "${DS_INFLUXDB-BC-MONITOR}"
       },
-      "description": "The latency for each tracked node, measured as the total time of the made request. This is not a perfect way to measure latency but close enough to get a general idea, and to be able to make a comparison between nodes.",
+      "description": "The latency for each endpoint, measured as the total time of the made request. This is not necessarily a perfect way to measure latency but it's close enough, and allows us to make a comparison between nodes.",
       "fieldConfig": {
         "defaults": {
           "color": {
@@ -745,6 +744,6 @@
   "timezone": "",
   "title": "Blockchain Monitor",
   "uid": "a2549b8b-d628-47f1-be83-4efc987dd0b8-1",
-  "version": 8,
+  "version": 9,
   "weekStart": ""
 }
