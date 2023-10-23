@@ -74,6 +74,7 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(rpc_endpoint_db_url, cache_max_age)
         time_endpoints_loaded = time.time()
+        # TODO: split here based on wss vs http, implement aiohttp approach for wss?
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=request_concurrency)
         time_results_fetched = time.time()
 
@@ -223,11 +224,11 @@ def test_connection(url: str) -> bool:
 
 def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> list:
     """Gets the RPC endpoints for all chains in the RPC database."""
-    return load_from_flask_api(rpc_endpoint_db_url, get_all_endpoints, 'cache.json', cache_refresh_interval)
+    return load_from_flask_api(rpc_endpoint_db_url, 'cache.json', cache_refresh_interval)
 
 
 # TODO: clean up cache handling
-def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, cache_filename: str, cache_refresh_interval: int) -> list:
+def load_from_flask_api(rpc_endpoint_db_url: str, cache_filename: str, cache_refresh_interval: int) -> list:
     """Load endpoints from cache or refresh if cache is stale."""
     # Load cached values from file
     try:
@@ -249,8 +250,7 @@ def load_from_flask_api(rpc_endpoint_db_url: str, get_endpoints_from: Callable, 
     if refresh_cache:
         try:
             logger.info("Updating cache from Flask API")
-            # TODO: does this need to be a callable in the function argument?
-            results = get_endpoints_from(rpc_endpoint_db_url)
+            results = get_all_endpoints(rpc_endpoint_db_url)
             last_cache_refresh = time.time()
             # Save updated cache to file
             with open(cache_filename, 'w', encoding='utf-8') as f:
