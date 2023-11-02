@@ -713,7 +713,7 @@
             "uid": "${DS_BLOCKCHAIN-MONITOR}"
           },
           "hide": false,
-          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"http_code\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield(name: \"BlockDiff\")",
+          "query": "import \"strings\"\n\nHttpCode = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"http_code\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield()",
           "refId": "A"
         }
       ],
@@ -759,6 +759,6 @@
   "timezone": "",
   "title": "Blockchain Monitor",
   "uid": "a2549b8b-d628-47f1-be83-4efc987dd0b8-1",
-  "version": 10,
+  "version": 11,
   "weekStart": ""
 }
