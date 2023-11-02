@@ -398,9 +398,10 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
         response_json = c.response_buffer.getvalue().decode('utf-8')
         try:
             response_dict = json.loads(response_json)
-        except json.JSONDecodeError as e:
-            logger.warning("JSONDecodeError for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
-                           c.url, response_json, http_code, e)
+            block_height = get_highest_block(c.api_class, response_dict) if validate_response(response_dict) else None
+        except (json.JSONDecodeError, TypeError) as e:
+            logger.warning("%s for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
+                           e.__class__.__name__, c.url, response_json, http_code, e)
             return {
                 'chain': c.chain,
                 'url': c.url,
@@ -408,7 +409,6 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
                 'latest_block_height': None,
                 'time_total': None
             }
-        block_height = get_highest_block(c.api_class, response_dict) if validate_response(response_dict) else None
 
     if not http_code:
         http_code = c.getinfo(pycurl.HTTP_CODE)
