@@ -116,7 +116,7 @@ def main():
             if result:
                 try:
                     try:
-                        http_code = result.get('http_code', -2)
+                        http_code = result.get('http_code') or -2
                         chain = result.get('chain')
                         url = result.get('url')
                     except KeyError as e:
