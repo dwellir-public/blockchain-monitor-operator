@@ -23,6 +23,7 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
 logger = logging.getLogger()
 
+REQUEST_TIMEOUT = 2500
 
 def main():
     """Monitor the blockchains."""
@@ -280,7 +281,7 @@ def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
 
 def block_height_request_point(chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str) -> Point:
     """Defines a block height request point measurement for the database."""
-    time_total = float(data.get('time_total')) if data.get('time_total') else None
+    time_total = float(data.get('time_total')) if data.get('time_total') else REQUEST_TIMEOUT/1000.0
     latest_block_height = int(data.get('latest_block_height')) if data.get('latest_block_height') else None
 
     point = Point("block_height_request") \
@@ -373,7 +374,7 @@ def get_handle(headers: list) -> pycurl.Curl:
     c = pycurl.Curl()
     c.setopt(pycurl.HTTPHEADER, headers)
     c.setopt(pycurl.POST, 1)
-    c.setopt(pycurl.TIMEOUT_MS, 2500)  # Set a timeout for the request
+    c.setopt(pycurl.TIMEOUT_MS, REQUEST_TIMEOUT)  # Set a timeout for the request
     c.setopt(pycurl.NOSIGNAL, 1)  # Disable signals for multi-threaded applications
     return c
 
