@@ -15,6 +15,7 @@ import pycurl
 from io import BytesIO
 import re
 import websocket
+import socket
 from statistics import mean
 
 from influxdb_client import InfluxDBClient, Point
@@ -24,6 +25,8 @@ logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=lo
 logger = logging.getLogger()
 
 REQUEST_TIMEOUT = 2500
+WS_TIMEOUT = 2.5
+
 
 def main():
     """Monitor the blockchains."""
@@ -75,11 +78,13 @@ def main():
         time_loop_start = time.time()
         all_endpoints = load_endpoints(rpc_endpoint_db_url, cache_max_age)
         time_endpoints_loaded = time.time()
+        logger.info("Endpoints loaded")
         # TODO: split here based on wss vs http, implement aiohttp approach for wss?
         all_results = fetch_results_pycurl(endpoints=all_endpoints, num_connections=request_concurrency)
         time_results_fetched = time.time()
 
         # Create block_heights dict
+        logger.info("Sorting results")
         block_heights = {}
         for result in all_results:
             try:
@@ -423,14 +428,20 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     }
 
 
-def make_ws_request(url: str, api_class: str) -> tuple[int, int]:
-    ws = websocket.create_connection(url)
-    data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
-    ws.send(data)
-    response = json.loads(ws.recv())
-    block_height = get_highest_block(api_class, response) if validate_response(response) else None
-    http_code = 200
-    ws.close()
+def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tuple[int, int]:
+    try:
+        ws = websocket.create_connection(url, timeout=timeout)
+        ws.settimeout(timeout)
+        data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
+        ws.send(data)
+        response = json.loads(ws.recv())
+        block_height = get_highest_block(api_class, response) if validate_response(response) else None
+        http_code = 200
+    except (websocket._exceptions.WebSocketTimeoutException, socket.timeout):
+        block_height = None
+        http_code = 408  # HTTP status code for Request Timeout
+    finally:
+        ws.close()
     return block_height, http_code
 
 
