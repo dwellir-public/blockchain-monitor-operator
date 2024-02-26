@@ -38,6 +38,23 @@ You might also want to, every now and then, check the health of the RPC endpoint
 
 In the journal you'll find warnings and errors that the service encounters when attempting to make requests to the endpoints. For any endpoint giving off an error or warning you might want to consider to replace it with another one for that particular chain. Regarding how to do that, please refer to the `endpointdb` readme.
 
+### Influx
+
+The database that the BCM stores block height data in can be accessed through the CLI:
+
+    juju ssh <blockchain-monitor machine>
+    sudo su
+    # See available commands
+    influx
+
+An example command one would want to run could be to check the current retention values and then update them to something new:
+
+    # List buckets to see current retention as well as ID
+    influx bucket ls
+
+    # Set new retention
+    influx bucket update --retention 26w -id <ID of target bucket>
+
 ### Grafana
 
 An intention of this application is to gain a good monitoring overview through Grafana:
