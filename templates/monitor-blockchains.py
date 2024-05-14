@@ -424,7 +424,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
                 'url': c.url,
                 'http_code': http_code or c.getinfo(http_code),
                 'latest_block_height': None,
-                'time_total': None
+                'time_total': total_time
             }
         
     if not http_code:
