@@ -400,6 +400,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     # connect_time = c.getinfo(pycurl.CONNECT_TIME)
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
     # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
+    
     if not block_height:
         response_json = c.response_buffer.getvalue().decode('utf-8')
         try:
@@ -415,7 +416,17 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
                 'latest_block_height': None,
                 'time_total': None
             }
-
+        except AttributeError:
+            logger.warning("AttributeError for request to [%s] with response: [%s], http_code: [%s]",
+                           c.url, response_json, http_code)
+            return {
+                'chain': c.chain,
+                'url': c.url,
+                'http_code': http_code or c.getinfo(http_code),
+                'latest_block_height': None,
+                'time_total': None
+            }
+        
     if not http_code:
         http_code = c.getinfo(pycurl.HTTP_CODE)
 
