@@ -510,9 +510,9 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             if "api-" in url and "dwellir" in url:
                 if "avalanche" in url:
                     # URL = api-avalanche-mainnet-archive.dwellir.com/ext/bc/C/rpc
-                    url = url.replace("/ext/bc/C/rpc", "/8a7cb143-4cb9-4023-8318-ff9714d0dbc1/ext/bc/C/rpc")
+                    url = url.replace("/ext/bc/C/rpc", "/12345678-f359-43a8-89aa-3219a362396f/ext/bc/C/rpc")
                 else:
-                    url = url + "/8a7cb143-4cb9-4023-8318-ff9714d0dbc1"
+                    url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
