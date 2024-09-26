@@ -1,27 +1,27 @@
 #!/usr/bin/env python3
 
-from datetime import datetime
 import json
 import logging
+import re
+import socket
 import sys
-from pathlib import Path
-from typing import Callable
-import requests
 import time
-from urllib.parse import urlparse
-import pycurl
+from datetime import datetime
+
 # TODO: move to readme during readme update
 # pycurl docs: http://pycurl.io/docs/latest/index.html
 from io import BytesIO
-import re
-import websocket
-import socket
+from pathlib import Path
 from statistics import mean
+from urllib.parse import urlparse
 
+import pycurl
+import requests
+import websocket
 from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 
-logging.basicConfig(format='%(asctime)s - %(levelname)s - %(message)s', level=logging.INFO)
+logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger()
 
 REQUEST_TIMEOUT = 2500
@@ -33,46 +33,46 @@ def main():
     logger.info("Blockchain monitor started.")
 
     # Load config
-    config_file = Path.cwd() / 'config.json'
+    config_file = Path.cwd() / "config.json"
     if not config_file.exists():
         raise FileNotFoundError("Config file not found:", config_file)
-    with open(config_file, encoding='utf-8') as f:
+    with open(config_file, encoding="utf-8") as f:
         config = json.load(f)
     logger.info("Config file loaded from %s:", config_file)
     logger.info(config)
 
     # Update log level
     try:
-        log_level = config['LOG_LEVEL'].upper()
-        if log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+        log_level = config["LOG_LEVEL"].upper()
+        if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
             raise ValueError("Invalid log level.")
     except ValueError as e:
-        log_level = 'INFO'  # Default
+        log_level = "INFO"  # Default
         logger.warning("Log level error [%s], level set to 'INFO'.", e)
     logger.setLevel(log_level)
 
     # Set up variables from config
     influxdb = {
-        'url': config['INFLUXDB_URL'],
-        'token': config['INFLUXDB_TOKEN'],
-        'org': config['INFLUXDB_ORG'],
-        'bucket': config['INFLUXDB_BUCKET']
+        "url": config["INFLUXDB_URL"],
+        "token": config["INFLUXDB_TOKEN"],
+        "org": config["INFLUXDB_ORG"],
+        "bucket": config["INFLUXDB_BUCKET"],
     }
-    cache_max_age = config['RPC_CACHE_MAX_AGE']
-    request_interval = config['REQUEST_INTERVAL']
-    request_concurrency = config['REQUEST_CONCURRENCY']
-    rpc_endpoint_db_url = config['RPC_ENDPOINT_DB_URL']
+    cache_max_age = config["RPC_CACHE_MAX_AGE"]
+    request_interval = config["REQUEST_INTERVAL"]
+    request_concurrency = config["REQUEST_CONCURRENCY"]
+    rpc_endpoint_db_url = config["RPC_ENDPOINT_DB_URL"]
 
     # Test connection to influx before attempting to start
-    if not test_influxdb_connection(influxdb['url'], influxdb['token'], influxdb['org']):
-        logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb['url'])
+    if not test_influxdb_connection(influxdb["url"], influxdb["token"], influxdb["org"]):
+        logger.error("Couldn't connect to influxdb at url %s\nExiting.", influxdb["url"])
         sys.exit(1)
-    if not test_connection(rpc_endpoint_db_url + '/all/chains'):
+    if not test_connection(rpc_endpoint_db_url + "/all/chains"):
         logger.error("Couldn't connect to the RPC Flask API at url %s\nExiting.", rpc_endpoint_db_url)
         sys.exit(1)
     logger.info("Connection tested.")
 
-    program_counter = {'loop_time': [], 'failed_requests': []}
+    program_counter = {"loop_time": [], "failed_requests": []}
     while True:
         logger.info("- MONITOR LOOP START")
         time_loop_start = time.time()
@@ -88,18 +88,18 @@ def main():
         block_heights = {}
         for result in all_results:
             try:
-                if result and result.get('latest_block_height'):
+                if result and result.get("latest_block_height"):
                     try:
-                        chain = result.get('chain')
-                        url = result.get('url')
+                        chain = result.get("chain")
+                        url = result.get("url")
                     except KeyError as e:
                         logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
                         continue
                     if chain not in block_heights.keys():
                         block_heights[chain] = []
-                    block_heights[chain].append((url, result.get('latest_block_height')))
+                    block_heights[chain].append((url, result.get("latest_block_height")))
             except (AttributeError, UnboundLocalError) as e:
-                logger.error(f'{e.__class__.__name__} for {result}, %s', e)
+                logger.error(f"{e.__class__.__name__} for {result}, %s", e)
         # Calculate block_height diffs and maxes
         block_height_diffs = {}
         chain_max_heights = {}
@@ -115,23 +115,23 @@ def main():
         logger.info("- PARSE RESULTS")
         timestamp = datetime.utcnow()
         records = []
-        loop_counter = {'failed_requests': 0, 'http': 0, 'ws': 0}
+        loop_counter = {"failed_requests": 0, "http": 0, "ws": 0}
         # TODO: do result loop by chain, and set timestamp per chain
         # Create and append RPC data points
         for result in all_results:
             if result:
                 try:
                     try:
-                        http_code = result.get('http_code') or -2
-                        chain = result.get('chain')
-                        url = result.get('url')
+                        http_code = result.get("http_code") or -2
+                        chain = result.get("chain")
+                        url = result.get("url")
                     except KeyError as e:
                         logger.error("KeyError when accessing result [%s], error: [%s]", result, e)
                         continue
-                    if 'http' in url:
-                        loop_counter['http'] = loop_counter['http'] + 1
-                    elif 'ws' in url:
-                        loop_counter['ws'] = loop_counter['ws'] + 1
+                    if "http" in url:
+                        loop_counter["http"] = loop_counter["http"] + 1
+                    elif "ws" in url:
+                        loop_counter["ws"] = loop_counter["ws"] + 1
                     # TODO: clean up the point creation
                     # TODO: handle code 429 specially, usually means rate limit hit
                     block_height_diff = get_block_height_diff(block_height_diffs, chain, url)
@@ -143,8 +143,9 @@ def main():
                             data=result,
                             block_height_diff=block_height_diff,
                             timestamp=timestamp,
-                            http_code=http_code)
-                        loop_counter['failed_requests'] = loop_counter['failed_requests'] + 1
+                            http_code=http_code,
+                        )
+                        loop_counter["failed_requests"] = loop_counter["failed_requests"] + 1
                     else:
                         brp = block_height_request_point(
                             chain=chain,
@@ -152,42 +153,52 @@ def main():
                             data=result,
                             block_height_diff=block_height_diff,
                             timestamp=timestamp,
-                            http_code=http_code)
+                            http_code=http_code,
+                        )
                     logger.debug("Writing point to InfluxDB: %s", brp)
                     records.append(brp)
                 except KeyError as e:
-                    logger.error("KeyError while accessing results for [%s], results: [%s], key: [%s]", url, result, str(e))
+                    logger.error(
+                        "KeyError while accessing results for [%s], results: [%s], key: [%s]", url, result, str(e)
+                    )
                 except Exception as e:
-                    logger.error("%s while accessing results for [%s], results: [%s], error: [%s]", {
-                                 e.__class__.__name__}, url, result, str(e))
+                    logger.error(
+                        "%s while accessing results for [%s], results: [%s], error: [%s]",
+                        {e.__class__.__name__},
+                        url,
+                        result,
+                        str(e),
+                    )
             else:
                 logger.warning("Couldn't get results from [%s]. Skipping.", url)
         time_results_parsed = time.time()
 
         # Create and append max block height data points
         for chain, max_height in chain_max_heights.items():
-            records.append(Point("block_height_request")
-                           .tag("chain", chain)
-                           .tag("url", "zzz - Max over time")  # 'zzz' to sort it last, is removed in Grafana
-                           .field("block_height", max_height)
-                           .time(timestamp))
-        write_to_influxdb(influxdb['url'], influxdb['token'], influxdb['org'], influxdb['bucket'], records)
+            records.append(
+                Point("block_height_request")
+                .tag("chain", chain)
+                .tag("url", "zzz - Max over time")  # 'zzz' to sort it last, is removed in Grafana
+                .field("block_height", max_height)
+                .time(timestamp)
+            )
+        write_to_influxdb(influxdb["url"], influxdb["token"], influxdb["org"], influxdb["bucket"], records)
         time_influxdb_written = time.time()
 
         logger.info("- MONITOR LOOP END")
         loop_time = time.time() - time_loop_start
         logger.info("Loop - Processed requests:   %s/%s", len(all_results), len(all_endpoints))
-        logger.info("Loop - Failed requests:      %s", loop_counter['failed_requests'])
-        logger.info("Loop - Endpoints using http: %s", loop_counter['http'])
-        logger.info("Loop - Endpoints using ws:   %s", loop_counter['ws'])
+        logger.info("Loop - Failed requests:      %s", loop_counter["failed_requests"])
+        logger.info("Loop - Endpoints using http: %s", loop_counter["http"])
+        logger.info("Loop - Endpoints using ws:   %s", loop_counter["ws"])
         mean_time = loop_time / len(all_endpoints)
         logger.info("Loop - Processing time:      %.3fs (mean %.3fs)", loop_time, mean_time)
-        program_counter['loop_time'].append(loop_time)
-        program_counter['failed_requests'].append(loop_counter['failed_requests'])
+        program_counter["loop_time"].append(loop_time)
+        program_counter["failed_requests"].append(loop_counter["failed_requests"])
         # TODO: make these counters only average last 1/6/24h? Average over longer times might mean little
-        logger.info("Program - Loops since program start: %s", len(program_counter['loop_time']))
-        logger.info("Program - Mean loop processing time: %.3fs", mean(program_counter['loop_time']))
-        logger.info("Program - Average failed requests:   %.2f", mean(program_counter['failed_requests']))
+        logger.info("Program - Loops since program start: %s", len(program_counter["loop_time"]))
+        logger.info("Program - Mean loop processing time: %.3fs", mean(program_counter["loop_time"]))
+        logger.info("Program - Average failed requests:   %.2f", mean(program_counter["failed_requests"]))
 
         # Debugging info
         endpoints_load_time = time_endpoints_loaded - time_loop_start
@@ -225,12 +236,12 @@ def test_connection(url: str) -> bool:
             return True
         return False
     except requests.exceptions.RequestException as e:
-        logger.warning('Connection to URL failed: %s', str(e))
+        logger.warning("Connection to URL failed: %s", str(e))
 
 
 def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> list:
     """Gets the RPC endpoints for all chains in the RPC database."""
-    return load_from_flask_api(rpc_endpoint_db_url, 'cache.json', cache_refresh_interval)
+    return load_from_flask_api(rpc_endpoint_db_url, "cache.json", cache_refresh_interval)
 
 
 # TODO: clean up cache handling
@@ -238,10 +249,10 @@ def load_from_flask_api(rpc_endpoint_db_url: str, cache_filename: str, cache_ref
     """Load endpoints from cache or refresh if cache is stale."""
     # Load cached values from file
     try:
-        with open(cache_filename, 'r', encoding='utf-8') as f:
+        with open(cache_filename, "r", encoding="utf-8") as f:
             results, last_cache_refresh = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
-        logger.warning('Could not load values from %s', cache_filename)
+        logger.warning("Could not load values from %s", cache_filename)
         results, last_cache_refresh = None, 0
 
     # Check if cache is stale
@@ -259,13 +270,13 @@ def load_from_flask_api(rpc_endpoint_db_url: str, cache_filename: str, cache_ref
             results = get_all_endpoints(rpc_endpoint_db_url)
             last_cache_refresh = time.time()
             # Save updated cache to file
-            with open(cache_filename, 'w', encoding='utf-8') as f:
+            with open(cache_filename, "w", encoding="utf-8") as f:
                 json.dump((results, last_cache_refresh), f)
         except Exception as e:
             # Log the error
             logger.error("An error occurred while updating cache: %s", str(e))
             # Load the previous cache value
-            with open(cache_filename, 'r', encoding='utf-8') as f:
+            with open(cache_filename, "r", encoding="utf-8") as f:
                 results, last_cache_refresh = json.load(f)
     else:
         logger.info("Using cached values")
@@ -276,24 +287,24 @@ def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
     """Returns a list of endpoint tuples on the form (<chain>, <URL>, <API class>)."""
     # TODO: make return a dict instead?
     endpoint_tuples = []
-    all_chains = requests.get(f'{rpc_endpoint_db_url}/all/chains', timeout=3)
+    all_chains = requests.get(f"{rpc_endpoint_db_url}/all/chains", timeout=3)
     for chain in all_chains.json():
         chain_info = requests.get(f'{rpc_endpoint_db_url}/chain_info?chain_name={chain["name"]}', timeout=1)
-        for url in chain_info.json()['urls']:
-            endpoint_tuples.append((chain_info.json()['chain_name'], url, chain_info.json()['api_class']))
+        for url in chain_info.json()["urls"]:
+            endpoint_tuples.append((chain_info.json()["chain_name"], url, chain_info.json()["api_class"]))
     return endpoint_tuples
 
 
-def block_height_request_point(chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str) -> Point:
+def block_height_request_point(
+    chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str
+) -> Point:
     """Defines a block height request point measurement for the database."""
-    time_total = float(data.get('time_total')) if data.get('time_total') else REQUEST_TIMEOUT/1000.0
-    latest_block_height = int(data.get('latest_block_height')) if data.get('latest_block_height') else None
+    time_total = float(data.get("time_total")) if data.get("time_total") else REQUEST_TIMEOUT / 1000.0
+    latest_block_height = int(data.get("latest_block_height")) if data.get("latest_block_height") else None
 
-    point = Point("block_height_request") \
-        .tag("chain", chain) \
-        .tag("url", url) \
-        .field("http_code", http_code) \
-        .time(timestamp)
+    point = (
+        Point("block_height_request").tag("chain", chain).tag("url", url).field("http_code", http_code).time(timestamp)
+    )
     if isinstance(block_height_diff, int):
         point = point.field("block_height_diff", block_height_diff)
     if isinstance(latest_block_height, int):
@@ -304,11 +315,11 @@ def block_height_request_point(chain: str, url: str, data: dict, block_height_di
 
 
 def is_http_url(url: str) -> bool:
-    return is_valid_url(url, ['http', 'https'])
+    return is_valid_url(url, ["http", "https"])
 
 
 def is_ws_url(url: str) -> bool:
-    return is_valid_url(url, ['ws', 'wss'])
+    return is_valid_url(url, ["ws", "wss"])
 
 
 def is_valid_url(url: str, valid_schemes: list) -> bool:
@@ -317,14 +328,14 @@ def is_valid_url(url: str, valid_schemes: list) -> bool:
 
 
 def get_json_rpc_method(api_class: str) -> str:
-    if api_class == 'substrate':
-        return 'chain_getHeader'
-    if api_class == 'ethereum':
-        return 'eth_blockNumber'
-    if api_class == 'starknet':
-        return 'starknet_blockNumber'
+    if api_class == "substrate":
+        return "chain_getHeader"
+    if api_class == "ethereum":
+        return "eth_blockNumber"
+    if api_class == "starknet":
+        return "starknet_blockNumber"
     # TODO: should this be excepted higher up?
-    raise ValueError('Invalid api_class:', api_class)
+    raise ValueError("Invalid api_class:", api_class)
 
 
 def get_block_height_diff(diffs: dict, chain: str, url: str) -> int:
@@ -337,29 +348,29 @@ def get_block_height_diff(diffs: dict, chain: str, url: str) -> int:
 
 def get_highest_block(api_class: str, response: dict) -> int:
     try:
-        if api_class == 'substrate':
-            return int(response['result']['number'], 16)
-        if api_class == 'ethereum':
-            return int(response['result'], 16)
-        if api_class == 'starknet':
-            return int(response['result'])
+        if api_class == "substrate":
+            return int(response["result"]["number"], 16)
+        if api_class == "ethereum":
+            return int(response["result"], 16)
+        if api_class == "starknet":
+            return int(response["result"])
     except Exception as e:
-        logger.error(f'{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s', e)
+        logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
-    raise ValueError('Invalid api_class:', api_class)
+    raise ValueError("Invalid api_class:", api_class)
 
 
 def validate_response(response: dict) -> bool:
-    if 'result' in response.keys():
+    if "result" in response.keys():
         return True
-    if 'error' in response.keys():
+    if "error" in response.keys():
         # TODO: catch codes here? e.g. 'code': -32004 for hitting daily relay limit
-        logger.error("Error in request response: %s", response['error'])
+        logger.error("Error in request response: %s", response["error"])
     return False
 
 
 def parse_error_code(message: str) -> int:
-    match = re.search(r'\d+', message)
+    match = re.search(r"\d+", message)
     if match:
         return int(match.group())
     return -1
@@ -371,7 +382,7 @@ def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list
         write_api = client.write_api(write_options=SYNCHRONOUS)
         write_api.write(bucket=bucket, record=records)
     except Exception as e:
-        logger.critical("Failed writing to influx. %s",  str(e))
+        logger.critical("Failed writing to influx. %s", str(e))
         sys.exit(1)
 
 
@@ -385,8 +396,7 @@ def get_handle(headers: list) -> pycurl.Curl:
 
 
 def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) -> dict:
-    """
-    Gets the block height request result from a Curl object.
+    """Gets the block height request result from a Curl object.
 
     c - The Curl object
     block_height - Override parameter, usually from using websocket
@@ -400,42 +410,52 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     # connect_time = c.getinfo(pycurl.CONNECT_TIME)
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
     # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
-    
+
     if not block_height:
-        response_json = c.response_buffer.getvalue().decode('utf-8')
+        response_json = c.response_buffer.getvalue().decode("utf-8")
         try:
             response_dict = json.loads(response_json)
             block_height = get_highest_block(c.api_class, response_dict) if validate_response(response_dict) else None
         except (json.JSONDecodeError, TypeError) as e:
-            logger.warning("%s for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
-                           e.__class__.__name__, c.url, response_json, http_code, e)
+            logger.warning(
+                "%s for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
+                e.__class__.__name__,
+                c.url,
+                response_json,
+                http_code,
+                e,
+            )
             return {
-                'chain': c.chain,
-                'url': c.url,
-                'http_code': parse_error_code(response_json) if 'error code:' in str(response_json) else None,
-                'latest_block_height': None,
-                'time_total': None
+                "chain": c.chain,
+                "url": c.url,
+                "http_code": parse_error_code(response_json) if "error code:" in str(response_json) else None,
+                "latest_block_height": None,
+                "time_total": None,
             }
         except AttributeError:
-            logger.warning("AttributeError for request to [%s] with response: [%s], http_code: [%s]",
-                           c.url, response_json, http_code)
+            logger.warning(
+                "AttributeError for request to [%s] with response: [%s], http_code: [%s]",
+                c.url,
+                response_json,
+                http_code,
+            )
             return {
-                'chain': c.chain,
-                'url': c.url,
-                'http_code': http_code or c.getinfo(pycurl.HTTP_CODE),
-                'latest_block_height': None,
-                'time_total': total_time
+                "chain": c.chain,
+                "url": c.url,
+                "http_code": http_code or c.getinfo(pycurl.HTTP_CODE),
+                "latest_block_height": None,
+                "time_total": total_time,
             }
-        
+
     if not http_code:
         http_code = c.getinfo(pycurl.HTTP_CODE)
 
     return {
-        'chain': c.chain,
-        'url': c.url,
-        'http_code': http_code,
-        'time_total': total_time,
-        'latest_block_height': block_height
+        "chain": c.chain,
+        "url": c.url,
+        "http_code": http_code,
+        "time_total": total_time,
+        "latest_block_height": block_height,
     }
 
 
@@ -443,7 +463,7 @@ def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tupl
     try:
         ws = websocket.create_connection(url, timeout=timeout)
         ws.settimeout(timeout)
-        data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
+        data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
         ws.send(data)
         response = json.loads(ws.recv())
         block_height = get_highest_block(api_class, response) if validate_response(response) else None
@@ -458,17 +478,17 @@ def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tupl
 
 # TODO: rename after cleanup
 def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
-    """
-    Makes a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
+    """Makes a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
     'endpoints' - list of tuples (<chain>, <URL>, <API class>)
     'return' - list of dicts
     """
     # TODO: if error 1010 pops up again, try rotating user agents per https://www.scrapehero.com/how-to-fake-and-rotate-user-agents-using-python-3/
-    headers = ['Connection: keep-alive',
-               'Keep-Alive: timeout=4, max=10',
-               'Content-Type: application/json',
-               'User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0'
-               ]
+    headers = [
+        "Connection: keep-alive",
+        "Keep-Alive: timeout=4, max=10",
+        "Content-Type: application/json",
+        "User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0",
+    ]
     queue = endpoints.copy()
     cm = pycurl.CurlMulti()
     cm.handles = []
@@ -491,7 +511,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
-            data = json.dumps({'method': get_json_rpc_method(api_class), 'params': [], 'id': 1, 'jsonrpc': '2.0'})
+            data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
             c.setopt(pycurl.POSTFIELDS, data)
             cm.add_handle(c)
         # Run the internal curl state machine for the multi stack
@@ -544,5 +564,5 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
     return results
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
