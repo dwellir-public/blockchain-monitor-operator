@@ -507,6 +507,8 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c = freelist.pop()
             c.api_class = api_class
             c.chain = chain
+            if "api-" in url and "dwellir" in url:
+                url = url + "/8a7cb143-4cb9-4023-8318-ff9714d0dbc1"
             c.url = url
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
