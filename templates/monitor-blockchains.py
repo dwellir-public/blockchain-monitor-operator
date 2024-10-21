@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+"""Monitor the blockchains."""
+
 import json
 import logging
 import re
@@ -230,6 +232,7 @@ def test_influxdb_connection(url: str, token: str, org: str) -> bool:
 
 
 def test_connection(url: str) -> bool:
+    """Verify that a connection to the URL can be made."""
     try:
         response = requests.get(url, timeout=10)
         if response.status_code == 200:
@@ -240,7 +243,7 @@ def test_connection(url: str) -> bool:
 
 
 def load_endpoints(rpc_endpoint_db_url: str, cache_refresh_interval: int) -> list:
-    """Gets the RPC endpoints for all chains in the RPC database."""
+    """Get the RPC endpoints for all chains in the RPC database."""
     return load_from_flask_api(rpc_endpoint_db_url, "cache.json", cache_refresh_interval)
 
 
@@ -284,7 +287,7 @@ def load_from_flask_api(rpc_endpoint_db_url: str, cache_filename: str, cache_ref
 
 
 def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
-    """Returns a list of endpoint tuples on the form (<chain>, <URL>, <API class>)."""
+    """Return a list of endpoint tuples on the form (<chain>, <URL>, <API class>)."""
     # TODO: make return a dict instead?
     endpoint_tuples = []
     all_chains = requests.get(f"{rpc_endpoint_db_url}/all/chains", timeout=3)
@@ -298,7 +301,7 @@ def get_all_endpoints(rpc_endpoint_db_url: str) -> list:
 def block_height_request_point(
     chain: str, url: str, data: dict, block_height_diff: int, timestamp: datetime, http_code: str
 ) -> Point:
-    """Defines a block height request point measurement for the database."""
+    """Define and return a block height request point measurement for the database."""
     time_total = float(data.get("time_total")) if data.get("time_total") else REQUEST_TIMEOUT / 1000.0
     latest_block_height = int(data.get("latest_block_height")) if data.get("latest_block_height") else None
 
@@ -315,30 +318,37 @@ def block_height_request_point(
 
 
 def is_http_url(url: str) -> bool:
+    """Return True if the URL is a valid http URL."""
     return is_valid_url(url, ["http", "https"])
 
 
 def is_ws_url(url: str) -> bool:
+    """Return True if the URL is a valid websocket URL."""
     return is_valid_url(url, ["ws", "wss"])
 
 
 def is_valid_url(url: str, valid_schemes: list) -> bool:
+    """Return True if the URL has a valid scheme."""
     parsed_url = urlparse(url)
     return parsed_url.scheme in valid_schemes
 
 
 def get_json_rpc_method(api_class: str) -> str:
+    """Get the JSON-RPC method for the API class."""
     if api_class == "substrate":
         return "chain_getHeader"
     if api_class == "ethereum":
         return "eth_blockNumber"
     if api_class == "starknet":
         return "starknet_blockNumber"
+    if api_class == "filecoin":
+        return "Filecoin.ChainHead"
     # TODO: should this be excepted higher up?
     raise ValueError("Invalid api_class:", api_class)
 
 
 def get_block_height_diff(diffs: dict, chain: str, url: str) -> int:
+    """Get the block height difference for a specific chain and URL."""
     if chain not in diffs.keys():
         return None
     if url not in diffs[chain].keys():
@@ -347,6 +357,7 @@ def get_block_height_diff(diffs: dict, chain: str, url: str) -> int:
 
 
 def get_highest_block(api_class: str, response: dict) -> int:
+    """Get the highest block number from the response."""
     try:
         if api_class == "substrate":
             return int(response["result"]["number"], 16)
@@ -354,6 +365,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"], 16)
         if api_class == "starknet":
             return int(response["result"])
+        if api_class == "filecoin":
+            return int(response["result"]["Height"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -361,6 +374,7 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 
 def validate_response(response: dict) -> bool:
+    """Validate the presence of 'result' in the response dict."""
     if "result" in response.keys():
         return True
     if "error" in response.keys():
@@ -370,6 +384,7 @@ def validate_response(response: dict) -> bool:
 
 
 def parse_error_code(message: str) -> int:
+    """Parse the error code from a message."""
     match = re.search(r"\d+", message)
     if match:
         return int(match.group())
@@ -377,6 +392,7 @@ def parse_error_code(message: str) -> int:
 
 
 def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list) -> None:
+    """Write to the InfluxDB."""
     try:
         client = InfluxDBClient(url=url, token=token, org=org)
         write_api = client.write_api(write_options=SYNCHRONOUS)
@@ -387,6 +403,7 @@ def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list
 
 
 def get_handle(headers: list) -> pycurl.Curl:
+    """Get a Curl handle with the specified headers."""
     c = pycurl.Curl()
     c.setopt(pycurl.HTTPHEADER, headers)
     c.setopt(pycurl.POST, 1)
@@ -396,7 +413,7 @@ def get_handle(headers: list) -> pycurl.Curl:
 
 
 def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) -> dict:
-    """Gets the block height request result from a Curl object.
+    """Get the block height request result from a Curl object.
 
     c - The Curl object
     block_height - Override parameter, usually from using websocket
@@ -460,6 +477,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
 
 
 def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tuple[int, int]:
+    """Make a websocket request to the URL and return the block height and HTTP code."""
     try:
         ws = websocket.create_connection(url, timeout=timeout)
         ws.settimeout(timeout)
@@ -478,7 +496,8 @@ def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tupl
 
 # TODO: rename after cleanup
 def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
-    """Makes a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
+    """Make a block height request to all URL:s in the 'endpoints' list, returns a list of the results.
+
     'endpoints' - list of tuples (<chain>, <URL>, <API class>)
     'return' - list of dicts
     """
