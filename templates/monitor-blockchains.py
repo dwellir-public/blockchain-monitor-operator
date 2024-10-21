@@ -530,6 +530,9 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 if "avalanche" in url:
                     # URL = api-avalanche-mainnet-archive.dwellir.com/ext/bc/C/rpc
                     url = url.replace("/ext/bc/C/rpc", "/12345678-f359-43a8-89aa-3219a362396f/ext/bc/C/rpc")
+                elif "filecoin" in url:
+                    # URL = paribu-filecoin-mainnet.dwellir.com/rpc/v1
+                    url = url.replace("/rpc/v1", "/12345678-f359-43a8-89aa-3219a362396f/rpc/v1")
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
