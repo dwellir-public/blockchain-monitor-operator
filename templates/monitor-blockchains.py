@@ -343,6 +343,8 @@ def get_json_rpc_method(api_class: str) -> str:
         return "starknet_blockNumber"
     if api_class == "filecoin":
         return "Filecoin.ChainHead"
+    if api_class == "sui":
+        return "sui_getLatestCheckpointSequenceNumber"
     # TODO: should this be excepted higher up?
     raise ValueError("Invalid api_class:", api_class)
 
@@ -367,6 +369,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"])
         if api_class == "filecoin":
             return int(response["result"]["Height"])
+        if api_class == "sui":
+            return int(response["result"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
