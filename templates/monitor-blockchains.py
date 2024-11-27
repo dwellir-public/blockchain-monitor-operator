@@ -412,7 +412,7 @@ def get_handle(headers: list) -> pycurl.Curl:
     """Get a Curl handle with the specified headers."""
     c = pycurl.Curl()
     c.setopt(pycurl.HTTPHEADER, headers)
-    c.setopt(pycurl.POST, 1)
+    # c.setopt(pycurl.POST, 1)  # Moved setting of this to a per-request basis in the main loop
     c.setopt(pycurl.TIMEOUT_MS, REQUEST_TIMEOUT)  # Set a timeout for the request
     c.setopt(pycurl.NOSIGNAL, 1)  # Disable signals for multi-threaded applications
     return c
@@ -443,7 +443,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
             logger.warning(
                 "%s for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
                 e.__class__.__name__,
-                c.url,
+                c.getinfo(pycurl.EFFECTIVE_URL),
                 response_json,
                 http_code,
                 e,
@@ -545,8 +545,10 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
-            if not api_class == "rest":
-                # Only add data for non-REST endpoints
+            if api_class == "rest":
+                c.setopt(pycurl.HTTPGET, 1)
+            else:
+                c.setopt(pycurl.POST, 1)
                 data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
                 c.setopt(pycurl.POSTFIELDS, data)
             cm.add_handle(c)
