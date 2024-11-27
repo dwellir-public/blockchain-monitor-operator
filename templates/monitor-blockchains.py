@@ -371,6 +371,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"]["Height"])
         if api_class == "sui":
             return int(response["result"])
+        if api_class == "rest":
+            return int(response["height"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -378,8 +380,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 
 def validate_response(response: dict) -> bool:
-    """Validate the presence of 'result' in the response dict."""
-    if "result" in response.keys():
+    """Validate the presence of 'result' (and similar fields) in the response dict."""
+    if "result" in response.keys() or "height" in response.keys():
         return True
     if "error" in response.keys():
         # TODO: catch codes here? e.g. 'code': -32004 for hitting daily relay limit
@@ -532,10 +534,10 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.chain = chain
             if "api-" in url and "dwellir" in url:
                 if "avalanche" in url:
-                    # URL = api-avalanche-mainnet-archive.dwellir.com/ext/bc/C/rpc
+                    # URL like api-avalanche-mainnet-archive.dwellir.com/ext/bc/C/rpc
                     url = url.replace("/ext/bc/C/rpc", "/12345678-f359-43a8-89aa-3219a362396f/ext/bc/C/rpc")
                 elif "filecoin" in url:
-                    # URL = paribu-filecoin-mainnet.dwellir.com/rpc/v1
+                    # URL like api-filecoin-mainnet.dwellir.com/rpc/v1
                     url = url.replace("/rpc/v1", "/12345678-f359-43a8-89aa-3219a362396f/rpc/v1")
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
@@ -543,8 +545,10 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
-            data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
-            c.setopt(pycurl.POSTFIELDS, data)
+            if not api_class == "rest":
+                # Only add data for non-REST endpoints
+                data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
+                c.setopt(pycurl.POSTFIELDS, data)
             cm.add_handle(c)
         # Run the internal curl state machine for the multi stack
         while True:
