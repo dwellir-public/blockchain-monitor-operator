@@ -26,6 +26,8 @@ def get_highest_block(api_class: str, response):
         return int(response['result'])
     if api_class == 'sui':
         return int(response['result'])
+    if api_class == 'ton':
+        return int(response['result']['last']['seqno'])
     return None
 
 async def fetch(url: str, headers: list, data: str):

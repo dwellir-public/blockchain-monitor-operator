@@ -345,6 +345,8 @@ def get_json_rpc_method(api_class: str) -> str:
         return "Filecoin.ChainHead"
     if api_class == "sui":
         return "sui_getLatestCheckpointSequenceNumber"
+    if api_class == "ton":
+        return "getMasterchainInfo"
     # TODO: should this be excepted higher up?
     raise ValueError("Invalid api_class:", api_class)
 
@@ -373,6 +375,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"])
         if api_class == "rest":
             return int(response["height"])
+        if api_class == "ton":
+            return int(response['result']['last']['seqno'])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -539,6 +543,9 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 elif "filecoin" in url:
                     # URL like api-filecoin-mainnet.dwellir.com/rpc/v1
                     url = url.replace("/rpc/v1", "/12345678-f359-43a8-89aa-3219a362396f/rpc/v1")
+                elif "ton" in url:
+                    # URL like api-ton-mainnet-archive.n.dwellir.com/jsonRPC
+                    url = url.replace("/jsonRPC", "/12345678-f359-43a8-89aa-3219a362396f/jsonRPC")
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
