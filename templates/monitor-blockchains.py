@@ -33,6 +33,7 @@ WS_TIMEOUT = 2.5
 HTTP_GET_APIS = [
     "sidecar",
     "waves",
+    "cosmos-tendermint",
 ]
 
 
@@ -385,6 +386,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"]["last"]["seqno"])
         if api_class == "sidecar":
             return int(response["number"])
+        if api_class == "cosmos-tendermint":
+            return int(response["block"]["header"]["height"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -393,7 +396,7 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 def validate_response(response: dict) -> bool:
     """Validate the presence of 'result' (and similar fields) in the response dict."""
-    valid_fields = ["result", "height", "number"]
+    valid_fields = ["result", "height", "number", "block"]
     for field in valid_fields:
         if field in response.keys():
             return True
@@ -562,6 +565,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 elif "sidecar" in url:
                     # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
                     url = url.replace("/blocks/head/header", "/12345678-f359-43a8-89aa-3219a362396f/blocks/head/header")
+                elif "cosmos/base/tendermint" in url:
+                    # URL like api-celestia-mainnet-full.n.dwellir.com/cosmos/base/tendermint/v1beta1/blocks/latest
+                    url = url.replace(
+                        "/cosmos/base/tendermint/v1beta1/blocks/latest",
+                        "/12345678-f359-43a8-89aa-3219a362396f/cosmos/base/tendermint/v1beta1/blocks/latest",
+                    )
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
