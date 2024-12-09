@@ -30,6 +30,12 @@ REQUEST_TIMEOUT = 2500
 WS_TIMEOUT = 2.5
 
 
+HTTP_GET_APIS = [
+    "sidecar",
+    "waves",
+]
+
+
 def main():
     """Monitor the blockchains."""
     logger.info("Blockchain monitor started.")
@@ -373,10 +379,12 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["result"]["Height"])
         if api_class == "sui":
             return int(response["result"])
-        if api_class == "rest":
+        if api_class == "waves":
             return int(response["height"])
         if api_class == "ton":
-            return int(response['result']['last']['seqno'])
+            return int(response["result"]["last"]["seqno"])
+        if api_class == "sidecar":
+            return int(response["number"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -543,16 +551,22 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 elif "filecoin" in url:
                     # URL like api-filecoin-mainnet.dwellir.com/rpc/v1
                     url = url.replace("/rpc/v1", "/12345678-f359-43a8-89aa-3219a362396f/rpc/v1")
+                elif "waves" in url:
+                    # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
+                    url = url.replace("/blocks/height", "/12345678-f359-43a8-89aa-3219a362396f/blocks/height")
                 elif "ton" in url:
                     # URL like api-ton-mainnet-archive.n.dwellir.com/jsonRPC
                     url = url.replace("/jsonRPC", "/12345678-f359-43a8-89aa-3219a362396f/jsonRPC")
+                elif "sidecar" in url:
+                    # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
+                    url = url.replace("/blocks/head/header", "/12345678-f359-43a8-89aa-3219a362396f/blocks/head/header")
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
             c.setopt(pycurl.URL, url)  # may actually come from separate list "queue"
             c.response_buffer = BytesIO()
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
-            if api_class == "rest":
+            if api_class in HTTP_GET_APIS:
                 c.setopt(pycurl.HTTPGET, 1)
             else:
                 c.setopt(pycurl.POST, 1)
