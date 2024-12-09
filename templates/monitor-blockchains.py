@@ -393,8 +393,10 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 def validate_response(response: dict) -> bool:
     """Validate the presence of 'result' (and similar fields) in the response dict."""
-    if "result" in response.keys() or "height" in response.keys():
-        return True
+    valid_fields = ["result", "height", "number"]
+    for field in valid_fields:
+        if field in response.keys():
+            return True
     if "error" in response.keys():
         # TODO: catch codes here? e.g. 'code': -32004 for hitting daily relay limit
         logger.error("Error in request response: %s", response["error"])
