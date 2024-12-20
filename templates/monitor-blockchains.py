@@ -34,6 +34,7 @@ HTTP_GET_APIS = [
     "sidecar",
     "waves",
     "cosmos-tendermint",
+    "eos",
 ]
 
 
@@ -388,6 +389,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["number"])
         if api_class == "cosmos-tendermint":
             return int(response["block"]["header"]["height"])
+        if api_class == "eos":
+            return int(response["head_block_num"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
