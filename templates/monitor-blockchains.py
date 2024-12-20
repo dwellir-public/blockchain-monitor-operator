@@ -399,7 +399,7 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 def validate_response(response: dict) -> bool:
     """Validate the presence of 'result' (and similar fields) in the response dict."""
-    valid_fields = ["result", "height", "number", "block"]
+    valid_fields = ["result", "height", "number", "block", "head_block_num"]
     for field in valid_fields:
         if field in response.keys():
             return True
