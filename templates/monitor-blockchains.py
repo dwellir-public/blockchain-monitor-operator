@@ -35,6 +35,7 @@ HTTP_GET_APIS = [
     "waves",
     "cosmos-tendermint",
     "eos",
+    "eth-v1-beacon",
 ]
 
 
@@ -355,7 +356,6 @@ def get_json_rpc_method(api_class: str) -> str:
         return "sui_getLatestCheckpointSequenceNumber"
     if api_class == "ton":
         return "getMasterchainInfo"
-    # TODO: should this be excepted higher up?
     raise ValueError("Invalid api_class:", api_class)
 
 
@@ -391,6 +391,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["block"]["header"]["height"])
         if api_class == "eos":
             return int(response["head_block_num"])
+        if api_class == "eth-v1-beacon":
+            return int(response["data"][0]["header"]["message"]["slot"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -399,7 +401,7 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 def validate_response(response: dict) -> bool:
     """Validate the presence of 'result' (and similar fields) in the response dict."""
-    valid_fields = ["result", "height", "number", "block", "head_block_num"]
+    valid_fields = ["result", "height", "number", "block", "head_block_num", "data"]
     for field in valid_fields:
         if field in response.keys():
             return True
