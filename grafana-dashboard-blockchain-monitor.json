@@ -1,8 +1,8 @@
 {
   "__inputs": [
     {
-      "name": "DS_BLOCKCHAIN-MONITOR",
-      "label": "blockchain-monitor",
+      "name": "DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0",
+      "label": "influxdb-eu-north-1-blockchain-monitor-0",
       "description": "",
       "type": "datasource",
       "pluginId": "influxdb",
@@ -15,7 +15,13 @@
       "type": "grafana",
       "id": "grafana",
       "name": "Grafana",
-      "version": "9.5.2"
+      "version": "11.5.0-81082"
+    },
+    {
+      "type": "panel",
+      "id": "histogram",
+      "name": "Histogram",
+      "version": ""
     },
     {
       "type": "datasource",
@@ -48,22 +54,27 @@
         "hide": true,
         "iconColor": "rgba(0, 211, 255, 1)",
         "name": "Annotations & Alerts",
+        "target": {
+          "limit": 100,
+          "matchAny": false,
+          "tags": [],
+          "type": "dashboard"
+        },
         "type": "dashboard"
       }
     ]
   },
-  "description": "Monitors block height and latency for a list of publicly accessible endpoints.",
+  "description": "Monitors block height and latency for a list of publicly accessible endpoints using Dwellir custom BCM software.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 0,
   "id": null,
   "links": [],
-  "liveNow": false,
   "panels": [
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_BLOCKCHAIN-MONITOR}"
+        "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
       },
       "description": "Difference between each individual RPC endpoint and the current max height of any measured endpoint. This means that nodes with a difference of zero are furthest ahead.",
       "fieldConfig": {
@@ -73,12 +84,14 @@
             "seriesBy": "max"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMax": 5,
             "barAlignment": -1,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -87,6 +100,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineStyle": {
               "fill": "solid"
@@ -137,7 +151,32 @@
             ]
           }
         },
-        "overrides": []
+        "overrides": [
+          {
+            "__systemRef": "hideSeriesFrom",
+            "matcher": {
+              "id": "byNames",
+              "options": {
+                "mode": "exclude",
+                "names": [
+                  "polkadot-rpc.dwellir.com"
+                ],
+                "prefix": "All except:",
+                "readOnly": true
+              }
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": true
+                }
+              }
+            ]
+          }
+        ]
       },
       "gridPos": {
         "h": 9,
@@ -154,30 +193,30 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.5.1",
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${DS_BLOCKCHAIN-MONITOR}"
+            "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
           },
           "hide": false,
-          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"block_height_diff\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield(name: \"BlockDiff\")",
+          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"block_height_diff\")\n  |> aggregateWindow(every: $__interval, fn: max)\n  |> filter(fn: (r) => exists r._value)  // Filter out empty values\n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimSuffix(v: r.url, suffix: \"/12345678-f359-43a8-89aa-3219a362396f\")}))\n  |> yield(name: \"BlockDiff\")",
           "refId": "A"
         }
       ],
       "title": "Block Height Difference",
-      "transformations": [],
       "type": "timeseries"
     },
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_BLOCKCHAIN-MONITOR}"
+        "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
       },
       "description": "Block height over time for each endpoint.",
       "fieldConfig": {
@@ -186,11 +225,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -199,6 +240,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -247,17 +289,19 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${DS_BLOCKCHAIN-MONITOR}"
+            "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
           },
-          "query": "import \"strings\"\n\nChains = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"block_height\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield(name: \"Chains\")",
+          "query": "import \"strings\"\n\nChains = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"block_height\")\n  |> aggregateWindow(every: $__interval, fn: max)\n  |> filter(fn: (r) => exists r._value and r._value != 0)  // Filter out empty values\n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimSuffix(v: r.url, suffix: \"/12345678-f359-43a8-89aa-3219a362396f\")}))\n  |> yield(name: \"Chains\")",
           "refId": "A"
         }
       ],
@@ -333,6 +377,7 @@
         "graphMode": "area",
         "justifyMode": "auto",
         "orientation": "horizontal",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "mean"
@@ -340,9 +385,11 @@
           "fields": "",
           "values": false
         },
-        "textMode": "auto"
+        "showPercentChange": false,
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.5.2",
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
@@ -356,7 +403,6 @@
       "title": "Mean Latency",
       "transformations": [
         {
-          "disabled": true,
           "id": "joinByField",
           "options": {
             "byField": "Time",
@@ -364,25 +410,23 @@
           }
         },
         {
-          "disabled": true,
           "id": "reduce",
           "options": {
             "includeTimeField": false,
             "mode": "reduceFields",
             "reducers": [
-              "max"
+              "mean"
             ]
           }
         },
         {
-          "disabled": true,
           "id": "calculateField",
           "options": {
             "alias": "Mean Max",
             "mode": "reduceRow",
             "reduce": {
               "include": [],
-              "reducer": "mean"
+              "reducer": "max"
             },
             "replaceFields": false
           }
@@ -448,6 +492,7 @@
         "graphMode": "none",
         "justifyMode": "center",
         "orientation": "auto",
+        "percentChangeColorMode": "standard",
         "reduceOptions": {
           "calcs": [
             "lastNotNull"
@@ -455,10 +500,12 @@
           "fields": "/.*/",
           "values": false
         },
+        "showPercentChange": false,
         "text": {},
-        "textMode": "auto"
+        "textMode": "auto",
+        "wideLayout": true
       },
-      "pluginVersion": "9.5.2",
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
@@ -520,7 +567,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_BLOCKCHAIN-MONITOR}"
+        "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
       },
       "description": "The latency for each endpoint, measured as the total time of the made request. This is not necessarily a perfect way to measure latency but it's close enough, and allows us to make a comparison between nodes.",
       "fieldConfig": {
@@ -529,11 +576,13 @@
             "mode": "palette-classic"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "barAlignment": 0,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -542,6 +591,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineWidth": 1,
             "pointSize": 5,
@@ -590,17 +640,19 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "single",
           "sort": "none"
         }
       },
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${DS_BLOCKCHAIN-MONITOR}"
+            "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
           },
-          "query": "import \"strings\"\n\nfrom(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"request_time_total\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))",
+          "query": "import \"strings\"\n\nfrom(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"request_time_total\")\n  |> aggregateWindow(every: $__interval, fn: max)\n  |> filter(fn: (r) => exists r._value and r._value != 0)  // Filter out empty values\n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimSuffix(v: r.url, suffix: \"/12345678-f359-43a8-89aa-3219a362396f\")}))",
           "refId": "A"
         }
       ],
@@ -610,7 +662,7 @@
     {
       "datasource": {
         "type": "influxdb",
-        "uid": "${DS_BLOCKCHAIN-MONITOR}"
+        "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
       },
       "description": "HTTP code reported by the Blockchain Monitor script. Code > 0: HTTP interpretation. Code < 0: unknown issue, check charm log.",
       "fieldConfig": {
@@ -620,12 +672,14 @@
             "seriesBy": "max"
           },
           "custom": {
+            "axisBorderShow": false,
             "axisCenteredZero": false,
             "axisColorMode": "text",
             "axisLabel": "",
             "axisPlacement": "auto",
             "axisSoftMax": 5,
             "barAlignment": -1,
+            "barWidthFactor": 0.6,
             "drawStyle": "line",
             "fillOpacity": 0,
             "gradientMode": "none",
@@ -634,6 +688,7 @@
               "tooltip": false,
               "viz": false
             },
+            "insertNulls": false,
             "lineInterpolation": "linear",
             "lineStyle": {
               "fill": "solid"
@@ -701,64 +756,173 @@
           "showLegend": true
         },
         "tooltip": {
+          "hideZeros": false,
           "mode": "multi",
           "sort": "none"
         }
       },
-      "pluginVersion": "9.5.2",
+      "pluginVersion": "11.5.0-81082",
       "targets": [
         {
           "datasource": {
             "type": "influxdb",
-            "uid": "${DS_BLOCKCHAIN-MONITOR}"
+            "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
           },
           "hide": false,
-          "query": "import \"strings\"\n\nHttpCode = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"http_code\")\n  |> aggregateWindow(every: $__interval, fn: max)  \n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> yield()",
+          "query": "import \"strings\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"http_code\")\n  |> aggregateWindow(every: $__interval, fn: max)\n  |> filter(fn: (r) => exists r._value)  // Filter out empty values\n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimSuffix(v: r.url, suffix: \"/12345678-f359-43a8-89aa-3219a362396f\")}))\n  |> yield(name: \"BlockDiff\")",
           "refId": "A"
         }
       ],
       "title": "HTTP Code",
-      "transformations": [],
       "type": "timeseries"
+    },
+    {
+      "collapsed": true,
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 27
+      },
+      "id": 9,
+      "panels": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
+          },
+          "description": "Histogram over block height difference. Max value set to 32 for viewability.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic",
+                "seriesBy": "max"
+              },
+              "custom": {
+                "fillOpacity": 30,
+                "gradientMode": "none",
+                "hideFrom": {
+                  "legend": false,
+                  "tooltip": false,
+                  "viz": false
+                },
+                "lineWidth": 1,
+                "stacking": {
+                  "group": "A",
+                  "mode": "none"
+                }
+              },
+              "mappings": [],
+              "max": 32,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "#EAB839",
+                    "value": 3
+                  },
+                  {
+                    "color": "orange",
+                    "value": 6
+                  },
+                  {
+                    "color": "dark-orange",
+                    "value": 10
+                  },
+                  {
+                    "color": "red",
+                    "value": 20
+                  },
+                  {
+                    "color": "dark-red",
+                    "value": 50
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 9,
+            "w": 9,
+            "x": 0,
+            "y": 28
+          },
+          "id": 8,
+          "options": {
+            "bucketSize": 1,
+            "combine": false,
+            "legend": {
+              "calcs": [],
+              "displayMode": "list",
+              "placement": "bottom",
+              "showLegend": true
+            },
+            "tooltip": {
+              "hideZeros": false,
+              "mode": "single",
+              "sort": "none"
+            }
+          },
+          "pluginVersion": "11.5.0-81082",
+          "targets": [
+            {
+              "datasource": {
+                "type": "influxdb",
+                "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
+              },
+              "hide": false,
+              "query": "import \"strings\"\nimport \"math\"\n\nBlockDiff = from(bucket: \"block_heights\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._measurement == \"block_height_request\")\n  |> filter(fn: (r) => r.chain == \"${chain_name}\")\n  |> filter(fn: (r) => r[\"_field\"] == \"block_height_diff\")\n  |> aggregateWindow(every: $__interval, fn: mean)  // Calculate the mean\n  |> filter(fn: (r) => exists r._value)            // Filter out empty values\n  |> map(fn: (r) => ({r with _value: math.round(x: r._value)}))  // Round the mean\n  |> keep(columns: [\"_time\", \"_value\", \"url\"])\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"http://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"https://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimPrefix(v: r.url, prefix: \"wss://\")}))\n  |> map(fn: (r) => ({r with url: strings.trimSuffix(v: r.url, suffix: \"/12345678-f359-43a8-89aa-3219a362396f\")}))\n  |> yield(name: \"BlockDiff\")",
+              "refId": "A"
+            }
+          ],
+          "title": "Block Height Diff Histogram",
+          "type": "histogram"
+        }
+      ],
+      "title": "Analysis",
+      "type": "row"
     }
   ],
   "refresh": "1m",
-  "schemaVersion": 38,
-  "style": "dark",
-  "tags": [],
+  "schemaVersion": 40,
+  "tags": [
+    "Europe"
+  ],
   "templating": {
     "list": [
       {
         "current": {},
         "datasource": {
           "type": "influxdb",
-          "uid": "${DS_BLOCKCHAIN-MONITOR}"
+          "uid": "${DS_INFLUXDB-EU-NORTH-1-BLOCKCHAIN-MONITOR-0}"
         },
         "definition": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(\n  bucket: \"block_heights\",\n  tag: \"chain\"\n)",
         "description": "The chains which we monitor block height for.",
-        "hide": 0,
         "includeAll": false,
         "label": "Chain",
-        "multi": false,
         "name": "chain_name",
         "options": [],
         "query": "import \"influxdata/influxdb/schema\"\n\nschema.tagValues(\n  bucket: \"block_heights\",\n  tag: \"chain\"\n)",
         "refresh": 1,
         "regex": "",
-        "skipUrlSync": false,
         "sort": 1,
         "type": "query"
       }
     ]
   },
   "time": {
-    "from": "now-1h",
+    "from": "now-90d",
     "to": "now"
   },
   "timepicker": {},
   "timezone": "",
-  "title": "Blockchain Monitor",
-  "uid": "a2549b8b-d628-47f1-be83-4efc987dd0b8-1",
-  "version": 11,
+  "title": "Dwellir Blockchain Monitor (EU-NORTH-1)",
+  "uid": "a2549b8b-d628-47f1-be83-4efc987dd0b8-2",
+  "version": 17,
   "weekStart": ""
 }
