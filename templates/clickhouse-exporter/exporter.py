@@ -15,7 +15,7 @@ logger = logging.getLogger()
 
 HOME_DIR = Path("/home/ubuntu")
 EXPORTER_DIR = HOME_DIR / "clickhouse-exporter"
-CONFIG_FILE_PATH = EXPORTER_DIR / "exporter-config.yaml"
+CONFIG_FILE = EXPORTER_DIR / "exporter-config.yaml"
 
 
 def get_influx_client(config: dict) -> InfluxDBClient:
@@ -33,9 +33,9 @@ def get_influx_client(config: dict) -> InfluxDBClient:
 
 def load_exporter_config() -> dict:
     """Load the configuration from the exporter config file."""
-    if not CONFIG_FILE_PATH.exists():
-        raise FileNotFoundError("Config file not found:", CONFIG_FILE_PATH)
-    with open(CONFIG_FILE_PATH, encoding="utf-8") as f:
+    if not CONFIG_FILE.exists():
+        raise FileNotFoundError("Config file not found:", CONFIG_FILE)
+    with open(CONFIG_FILE, encoding="utf-8") as f:
         config = yaml.safe_load(f)
     return config
 

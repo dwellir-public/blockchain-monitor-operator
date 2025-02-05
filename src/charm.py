@@ -68,14 +68,19 @@ class BlockchainMonitorCharm(ops.CharmBase):
             self.unit.status = BlockedStatus(str(e))
             event.defer()
             return
+
+        # TODO: handle config changes for exporter
+
         self._update_status()
 
     def _on_start(self, event: ops.StartEvent):
         """Handle start event."""
+        # TODO: include exporter service
         util.start_service(c.SERVICE_NAME_BC)
 
     def _on_stop(self, event: ops.StopEvent):
         """Handle stop event."""
+        # TODO: include exporter service
         util.stop_service(c.SERVICE_NAME_BC)
 
     def _on_update_status(self, event: ops.UpdateStatusEvent):
@@ -83,6 +88,7 @@ class BlockchainMonitorCharm(ops.CharmBase):
         self._update_status()
 
     def _update_status(self):
+        # TODO: include exporter service
         bc_service = util.service_running(c.SERVICE_NAME_BC)
         influx_service = util.service_running(c.SERVICE_NAME_INFLUX)
         msg_dict = {True: "Running", False: "Stopped"}
@@ -96,6 +102,7 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
+        # TODO: also restart exporter service
         util.stop_service(c.SERVICE_NAME_BC)
         util.install_files()
         util.start_service(c.SERVICE_NAME_BC)

@@ -1,0 +1,4 @@
+aiohttp
+schedule
+influxdb
+influxdb-client

@@ -3,6 +3,7 @@
 """Utils for the BCM charm."""
 
 import json
+import logging
 import shutil
 import subprocess as sp
 from pathlib import Path
@@ -10,6 +11,8 @@ from pathlib import Path
 from ops.model import ConfigData
 
 import constants as c
+
+logger = logging.getLogger(__name__)
 
 
 def install_apt_dependencies(script_path: Path) -> None:
@@ -27,8 +30,23 @@ def install_python_dependencies(requirements_file: Path) -> None:
 
 def install_files():
     """Install the script and service files."""
+    # BCM
+    logger.info("Installing BCM monitor script...")
     shutil.copy("templates/monitor-blockchains.py", c.MONITOR_SCRIPT_PATH)
     install_service_file(f"templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service", c.SERVICE_NAME_BC)
+    # Exporter
+    logger.info("Installing ClickHouse exporter...")
+    c.EXPORTER_DIR.mkdir(exist_ok=True)
+    for file in c.EXPORTER_INSTALL_FILES:
+        shutil.copyfile(file, c.EXPORTER_DIR / Path(file).name)
+    if not c.EXPORTER_CONFIG_PATH.exists():
+        shutil.copyfile(c.EXPORTER_CONFIG_FILE, c.EXPORTER_CONFIG_PATH)
+    # Configure exporter
+    # TODO: check for influx fields, check for clickhouse fields
+    # Install service file
+    target_path_service = Path(f"/etc/systemd/system/{c.EXPORTER_SERVICE_NAME}.service")
+    shutil.copyfile(c.EXPORTER_SERVICE_FILE, target_path_service)
+    sp.run(["systemctl", "daemon-reload"], check=False)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:

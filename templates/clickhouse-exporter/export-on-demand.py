@@ -2,7 +2,7 @@
 
 import argparse
 
-from exporter import BCMDataExporter, load_exporter_config
+from exporter import BCMDataExporter
 
 
 async def main():
@@ -15,10 +15,6 @@ async def main():
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     # parser.add_argument("-o", "--output", type=str, help="Output file to save results")
     args = parser.parse_args()
-
-    if not load_exporter_config().get("enabled", False):
-        print("Exporter is disabled.")
-        return
 
     exporter = BCMDataExporter(
         dry_run_all=args.dry_run,
