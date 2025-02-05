@@ -8,8 +8,8 @@ from exporter import BCMDataExporter, influx_result_to_list_of_dicts
 def main():
     """Parse arguments and run the exporter."""
     parser = argparse.ArgumentParser(description="Runs the exporter.")
-    parser.add_argument("--start", type=str, help="Start time", required=True)
-    parser.add_argument("--end", type=str, help="End time", required=True)
+    parser.add_argument("--start", type=str, help="Start time (inclusive)", required=True)
+    parser.add_argument("--end", type=str, help="End time (exclusive)", required=True)
     parser.add_argument("--dry-run", action="store_true", help="Dry run everything")
     parser.add_argument("--dry-run-ch", action="store_true", help="Query InfluxDB, but do not save to ClickHouse")
     parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
@@ -24,8 +24,12 @@ def main():
 
     # TODO: parse start and end times to the correct format if they're not already
     data = exporter.read_from_influx(start=args.start, stop=args.end)
-    data_list = influx_result_to_list_of_dicts(data)
-    print(data_list[:3])  # Print the first three entries
+    rows = influx_result_to_list_of_dicts(data)
+
+    if args.verbose and rows:
+        print(rows[0])
+
+    exporter.write_to_clickhouse(rows)
 
 
 if __name__ == "__main__":
