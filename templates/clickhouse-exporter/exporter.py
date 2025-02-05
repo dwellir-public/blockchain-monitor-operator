@@ -3,7 +3,6 @@
 TODO: write description
 """
 
-import json
 import logging
 from pathlib import Path
 
@@ -15,8 +14,7 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=lo
 logger = logging.getLogger()
 
 HOME_DIR = Path("/home/ubuntu")
-BCM_CONFIG_FILE_PATH = HOME_DIR / "config.json"
-CLICKHOUSE_CONFIG_FILE_PATH = HOME_DIR / "clickhouse-config.yaml"
+CONFIG_FILE_PATH = HOME_DIR / "exporter-config.yaml"
 
 
 def get_influx_client(config: dict) -> InfluxDBClient:
@@ -32,20 +30,11 @@ def get_influx_client(config: dict) -> InfluxDBClient:
         return None
 
 
-def load_bcm_config() -> dict:
-    """Load the configuration from the BCM config file."""
-    if not BCM_CONFIG_FILE_PATH.exists():
-        raise FileNotFoundError("Config file not found:", BCM_CONFIG_FILE_PATH)
-    with open(BCM_CONFIG_FILE_PATH, encoding="utf-8") as f:
-        config = json.load(f)
-    return config
-
-
-def load_clickhouse_config() -> dict:
-    """Load the configuration from the ClickHouse config file."""
-    if not CLICKHOUSE_CONFIG_FILE_PATH.exists():
-        raise FileNotFoundError("Config file not found:", CLICKHOUSE_CONFIG_FILE_PATH)
-    with open(CLICKHOUSE_CONFIG_FILE_PATH, encoding="utf-8") as f:
+def load_exporter_config() -> dict:
+    """Load the configuration from the exporter config file."""
+    if not CONFIG_FILE_PATH.exists():
+        raise FileNotFoundError("Config file not found:", CONFIG_FILE_PATH)
+    with open(CONFIG_FILE_PATH, encoding="utf-8") as f:
         config = yaml.safe_load(f)
     return config
 
@@ -54,26 +43,25 @@ class BCMDataExporter:
     """Export data from InfluxDB to ClickHouse for the BCM app."""
 
     def __init__(self):
-        self.bcm_config = load_bcm_config()
-        self.ch_config = load_clickhouse_config()
+        self.config = load_exporter_config()
 
-        self.influx_client = get_influx_client(self.bcm_config)
-        self.influx_bucket = self.bcm_config.get("INFLUXDB_BUCKET")
-        self.influx_org = self.bcm_config.get("INFLUXDB_ORG")
+        self.influx_client = get_influx_client(self.config)
+        self.influx_bucket = self.config.get("INFLUXDB_BUCKET")
+        self.influx_org = self.config.get("INFLUXDB_ORG")
 
         self.clickhouse_client = None
 
     def connect_clickhouse(self):
         """Connect to ClickHouse."""
         self.client = await clickhouse_connect.get_client(
-            host=self.ch_config.get("host"),
-            port=self.ch_config.get("port"),
-            username=self.ch_config.get("username"),
-            password=self.ch_config.get("password"),
+            host=self.config.get("CH_HOST"),
+            port=self.config.get("CH_PORT"),
+            username=self.config.get("CH_USERNAME"),
+            password=self.config.get("CH_PASSWORD"),
             database="default",
         )
 
-    def read_from_influx(self, url: str, start: str, stop: str) -> dict:
+    def read_from_influx(self, start: str, stop: str) -> dict:
         """Read from the InfluxDB."""
         # TODO: validate query options and returns
         try:
