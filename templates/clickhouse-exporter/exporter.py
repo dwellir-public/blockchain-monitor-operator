@@ -26,7 +26,7 @@ def get_influx_client(config: dict) -> InfluxDBClient:
             org=config["INFLUXDB_ORG"],
         )
     except KeyError as e:
-        logger.error("Failed to get InfluxDB client. %s", str(e))
+        logger.error("Failed to get InfluxDB client: %s", str(e))
         return None
 
 
@@ -42,24 +42,34 @@ def load_exporter_config() -> dict:
 class BCMDataExporter:
     """Export data from InfluxDB to ClickHouse for the BCM app."""
 
-    def __init__(self):
+    def __init__(self, dry_run_all: bool = False, dry_run_ch: bool = False, verbose: bool = False):
         self.config = load_exporter_config()
+        self.dry_run_if = dry_run_all
+        self.dry_run_ch = any([dry_run_ch, dry_run_all])
+        self.verbose = verbose
 
+        # InfluxDB
         self.influx_client = get_influx_client(self.config)
         self.influx_bucket = self.config.get("INFLUXDB_BUCKET")
         self.influx_org = self.config.get("INFLUXDB_ORG")
-
+        # ClickHouse
         self.clickhouse_client = None
 
-    def connect_clickhouse(self):
+    def connect_clickhouse(self) -> None:
         """Connect to ClickHouse."""
-        self.client = await clickhouse_connect.get_client(
-            host=self.config.get("CH_HOST"),
-            port=self.config.get("CH_PORT"),
-            username=self.config.get("CH_USERNAME"),
-            password=self.config.get("CH_PASSWORD"),
-            database="default",
-        )
+        try:
+            self.client = clickhouse_connect.get_client(
+                host=self.config.get("CH_HOST"),
+                port=self.config.get("CH_PORT"),
+                username=self.config.get("CH_USERNAME"),
+                password=self.config.get("CH_PASSWORD"),
+                database="default",
+            )
+        except Exception as e:
+            logger.error("Failed to connect to ClickHouse: %s", str(e))
+            return None
+        if self.verbose:
+            logger.info("Connected to ClickHouse.")
 
     def read_from_influx(self, start: str, stop: str) -> dict:
         """Read from the InfluxDB."""
@@ -70,9 +80,10 @@ class BCMDataExporter:
                 |> range(start: {start}, stop: {stop}) \
                 |> filter(fn: (r) => r._measurement == "block_height_request") \
                 |> filter(fn: (r) => exists r._value)'
-            logger.info(f"Query: {query}")
+            if self.verbose:
+                logger.info(f"Query: {query}")
             result = query_api.query(org=self.influx_org, query=query)
             return result
         except Exception as e:
-            logger.error("Failed querying influx. %s", str(e))
+            logger.error("Failed querying influx: %s", str(e))
             return {}
