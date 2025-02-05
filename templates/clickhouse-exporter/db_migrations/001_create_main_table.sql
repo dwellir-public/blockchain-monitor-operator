@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT EXISTS block_height_request (
+CREATE TABLE IF NOT EXISTS block_height_requests (
     timestamp DateTime,
     chain String,
     url String,

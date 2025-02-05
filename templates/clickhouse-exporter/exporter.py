@@ -14,7 +14,8 @@ logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=lo
 logger = logging.getLogger()
 
 HOME_DIR = Path("/home/ubuntu")
-CONFIG_FILE_PATH = HOME_DIR / "exporter-config.yaml"
+EXPORTER_DIR = HOME_DIR / "clickhouse-exporter"
+CONFIG_FILE_PATH = EXPORTER_DIR / "exporter-config.yaml"
 
 
 def get_influx_client(config: dict) -> InfluxDBClient:
