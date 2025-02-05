@@ -10,6 +10,9 @@ import logging
 import time
 
 import ops
+from charms.data_platform_libs.v0.data_interfaces import (
+    DatabaseRequires,
+)
 from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
 import constants as c
@@ -34,6 +37,9 @@ class BlockchainMonitorCharm(ops.CharmBase):
         self.framework.observe(self.on.get_influxdb_info_action, self._on_get_influxdb_info_action)
         self.framework.observe(self.on.restart_bc_monitor_service_action, self._on_restart_bc_monitor_service_action)
         self.framework.observe(self.on.restart_influxdb_service_action, self._on_restart_influxdb_service_action)
+        # Data interfaces
+        self.clickhouse = DatabaseRequires(self, "clickhouse", "default")
+        self.framework.observe(self.clickhouse.on.database_created, self._on_clickhouse_database_created)
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
@@ -135,6 +141,17 @@ class BlockchainMonitorCharm(ops.CharmBase):
         if not util.service_running(c.SERVICE_NAME_INFLUX):
             event.fail("Could not restart InfluxDB service")
         self.unit.status = ops.ActiveStatus("InfluxDB service restarted")
+
+    def _on_clickhouse_database_created(self, event):
+        """Edit the exporter config file with the clickhouse credentials from a relation."""
+        logger.debug("Received database credentials from the clickhouse relation: %s", event)
+        util.update_exporter_config(["clickhouse-host"], event.endpoints.split(",")[0])
+        # Clickhouse charm does not currently provide the port so using the default
+        util.update_exporter_config(["clickhouse-port"], 8123)
+        util.update_exporter_config(["clickhouse-username"], event.username)
+        util.update_exporter_config(["clickhouse-password"], event.password)
+        # TODO: restart exporter service
+        self._update_status()
 
 
 # TODO: add action to get info from endpointdb API (status of Flask endpoint, number of chains/RPC:s, time since update?)

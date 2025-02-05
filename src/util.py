@@ -8,6 +8,7 @@ import shutil
 import subprocess as sp
 from pathlib import Path
 
+import yaml
 from ops.model import ConfigData
 
 import constants as c
@@ -100,6 +101,24 @@ def update_monitor_config_file(config: ConfigData) -> None:
     monitoring_config["LOG_LEVEL"] = config.get("log-level")
     with open(c.MONITOR_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(monitoring_config, f)
+
+
+def update_exporter_config(key_path: list, value) -> None:
+    """Update the exporter config file."""
+    logger.debug("Updating config file for key %s with value '%s'", key_path, value)
+    # Read YAML file
+    with open(c.EXPORTER_CONFIG_PATH, "r", encoding="utf-8") as file:
+        data = yaml.safe_load(file)
+    logger.debug("Current config in %s: %s", str(c.EXPORTER_CONFIG_PATH), data)
+    # Navigate through the data to the specified key and update its value
+    nested_dict = data
+    for key in key_path[:-1]:  # Go through all but the last key
+        nested_dict = nested_dict.setdefault(key, {})  # Navigate while safely handling missing keys
+    nested_dict[key_path[-1]] = value  # Update the last key with the new value
+    # Write YAML file
+    logger.debug("Updating file '%s' with config: %s", str(c.EXPORTER_CONFIG_PATH), data)
+    with open(c.EXPORTER_CONFIG_PATH, "w", encoding="utf-8") as file:
+        yaml.safe_dump(data, file)
 
 
 def start_service(service_name: str) -> None:
