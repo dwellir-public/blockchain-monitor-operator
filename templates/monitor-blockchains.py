@@ -460,6 +460,9 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     # pretransfer_time = c.getinfo(pycurl.PRETRANSFER_TIME)
     # starttransfer_time = c.getinfo(pycurl.STARTTRANSFER_TIME)
 
+    if not http_code:
+        http_code = c.getinfo(pycurl.HTTP_CODE)
+
     if not block_height:
         response_json = c.response_buffer.getvalue().decode("utf-8")
         try:
@@ -478,7 +481,8 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
             return {
                 "chain": c.chain,
                 "url": c.url,
-                "http_code": parse_error_code(response_json) if "error code:" in str(response_json) else None,
+                # "http_code": parse_error_code(response_json) if "error code:" in str(response_json) else None,
+                "http_code": http_code,
                 "latest_block_height": None,
                 "time_total": None,
             }
@@ -492,13 +496,10 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
             return {
                 "chain": c.chain,
                 "url": c.url,
-                "http_code": http_code or c.getinfo(pycurl.HTTP_CODE),
+                "http_code": http_code,
                 "latest_block_height": None,
                 "time_total": total_time,
             }
-
-    if not http_code:
-        http_code = c.getinfo(pycurl.HTTP_CODE)
 
     return {
         "chain": c.chain,
@@ -519,9 +520,18 @@ def make_ws_request(url: str, api_class: str, timeout: int = WS_TIMEOUT) -> tupl
         response = json.loads(ws.recv())
         block_height = get_highest_block(api_class, response) if validate_response(response) else None
         http_code = 200
-    except (websocket._exceptions.WebSocketTimeoutException, socket.timeout):
+    except (websocket._exceptions.WebSocketTimeoutException, socket.timeout) as e:
+        logger.error("WebSocketTimeoutException for URL [%s], error: [%s]", url, e)
         block_height = None
         http_code = 408  # HTTP status code for Request Timeout
+    except websocket._exceptions.WebSocketBadStatusException as e:
+        logger.error("WebSocketBadStatusException for URL [%s], error: [%s]", url, e)
+        block_height = None
+        http_code = 400
+    except Exception as e:
+        logger.error("Error for URL [%s], error: [%s]", url, e)
+        block_height = None
+        http_code = 500
     finally:
         ws.close()
     return block_height, http_code
@@ -581,6 +591,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                         "/cosmos/base/tendermint/v1beta1/blocks/latest",
                         "/12345678-f359-43a8-89aa-3219a362396f/cosmos/base/tendermint/v1beta1/blocks/latest",
                     )
+                elif "wallet/getnowblock" in url:
+                    # URL like api-tron-mainnet.n.dwellir.com/wallet/getnowblock
+                    url = url.replace(
+                        "/wallet/getnowblock",
+                        "/12345678-f359-43a8-89aa-3219a362396f/wallet/getnowblock",
+                    )
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
@@ -612,19 +628,26 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 freelist.append(c)
             for c, errno, errmsg in err_list:
                 logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s].", c.url, errno, errmsg)
-                # TODO: handle err-num 7 (no route to host), 28 (connection timed out)
-                # TODO: keep parallelization in solution!
-                wss_block_height, wss_http_code = None, None
+                retry_block_height, retry_http_code = None, None
                 # TODO: implement a better way of handling websockets, this is only a "retry if fail"
                 if errno == 1 and "wss" in errmsg:
                     logger.debug("Trying websocket connection because of error: %s", errmsg)
                     try:
-                        wss_block_height, wss_http_code = make_ws_request(c.url, c.api_class)
+                        retry_block_height, retry_http_code = make_ws_request(c.url, c.api_class)
                     except Exception as e:
                         # TODO: downgrade log from error when selecting specific Exception/s to use
                         # TODO: use "if 429 in e:" to log a too many requests response
                         logger.error("Failed WS connection for URL: [%s], error [%s]", url, e)
-                results.append(get_result(c, wss_block_height, wss_http_code))
+                elif errno == 6:
+                    logger.debug("Could not resolve host for URL: [%s]", url)
+                    retry_http_code = 404  # HTTP status code for Not Found
+                elif errno == 7:
+                    logger.debug("No route to host for URL: [%s]", url)
+                    retry_http_code = 404  # HTTP status code for Not Found
+                elif errno == 28:
+                    logger.debug("Connection timed out for URL: [%s]", url)
+                    retry_http_code = 408  # HTTP status code for Request Timeout
+                results.append(get_result(c, retry_block_height, retry_http_code))
                 c.api_class = ""
                 c.chain = ""
                 c.url = ""
