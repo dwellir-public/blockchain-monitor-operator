@@ -36,6 +36,7 @@ HTTP_GET_APIS = [
     "cosmos-tendermint",
     "eos",
     "eth-v1-beacon",
+    "tron",
 ]
 
 
@@ -166,7 +167,7 @@ def main():
                             timestamp=timestamp,
                             http_code=http_code,
                         )
-                    logger.debug("Writing point to InfluxDB: %s", brp)
+                    # logger.debug("Writing point to InfluxDB: %s", brp)
                     records.append(brp)
                 except KeyError as e:
                     logger.error(
@@ -193,6 +194,7 @@ def main():
                 .field("block_height", max_height)
                 .time(timestamp)
             )
+        logger.info("Writing %s records to InfluxDB", len(records))
         write_to_influxdb(influxdb["url"], influxdb["token"], influxdb["org"], influxdb["bucket"], records)
         time_influxdb_written = time.time()
 
@@ -393,6 +395,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["head_block_num"])
         if api_class == "eth-v1-beacon":
             return int(response["data"][0]["header"]["message"]["slot"])
+        if api_class == "tron":
+            return int(response["block_header"]["raw_data"]["number"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -401,7 +405,7 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 def validate_response(response: dict) -> bool:
     """Validate the presence of 'result' (and similar fields) in the response dict."""
-    valid_fields = ["result", "height", "number", "block", "head_block_num", "data"]
+    valid_fields = ["result", "height", "number", "block", "head_block_num", "data", "block_header"]
     for field in valid_fields:
         if field in response.keys():
             return True
@@ -603,7 +607,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 c.chain = ""
                 c.url = ""
                 cm.remove_handle(c)
-                logger.debug("Successful curl for URL: [%s]", c.getinfo(pycurl.EFFECTIVE_URL))
+                # logger.debug("Successful curl for URL: [%s]", c.getinfo(pycurl.EFFECTIVE_URL))
                 freelist.append(c)
             for c, errno, errmsg in err_list:
                 logger.debug("Failed curl for URL: [%s], err-num: [%s], err-msg: [%s].", c.url, errno, errmsg)
