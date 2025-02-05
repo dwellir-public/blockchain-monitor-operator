@@ -12,7 +12,7 @@ The scripts of the exporter are installed to BCM's container, in a subdirectory 
 
 For the service to work, the `clickhouse-exporter` needs access to a ClickHouse database. The database connection details are read from the `exporter-config.yaml` file, and is set in either of two ways:
 
-1. Relating the BCM charm to a ClickHouse charm, and letting the charm code set the configuration. This is the preferred way, done by `juju integrate bc-monitor <clickhouse-charm>`.
+1. Relating the BCM charm to a ClickHouse charm, and letting the charm code set the configuration. This is the preferred way, done by `juju integrate <blockchain-monitor charm> <clickhouse charm>`.
 2. Manually setting the `clickhouse-` fields in the `exporter-config.yaml` file.
 
 The database itself needs to be set up separately, and the exporter will not create the database or tables for you. However, this repository contains SQL files for the necessary migrations, which can be run manually once you have set up the ClickHouse database. See the `migrations` directory for these files, and these instructions for how to apply them:

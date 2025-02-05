@@ -41,14 +41,16 @@ def load_exporter_config() -> dict:
     return config
 
 
-def influx_result_to_list_of_dicts(result: TableList) -> list[dict]:
-    """Pivot an InfluxDB query result into a list of dicts.
+def influx_result_to_list_of_dicts(result: TableList) -> (list[dict], list[dict]):
+    """Pivot an InfluxDB query result into two lists of dicts.
 
-    Takes the result from query_api.query(...) and pivots it so that
-    each row has all fields for a given timestamp + (chain, url).
+    Takes the result from query_api.query(...) and pivots it so that each row has
+    all fields for a given timestamp + (chain, url). Returns a second list of dicts
+    for the "zzz - Max over time" workaround data.
     """
     # Temporary dict to group data by (time, chain, url)
-    pivot_data = {}
+    block_height_data = {}
+    max_height_data = {}
 
     # result can contain multiple tables
     for table in result:
@@ -64,18 +66,21 @@ def influx_result_to_list_of_dicts(result: TableList) -> list[dict]:
             # Create a dict key for grouping different fields by (timestamp, chain, url)
             key = (t, chain, url)
 
-            # If we haven't seen this (timestamp, chain, url) combo, create a new dict
-            if key not in pivot_data:
-                pivot_data[key] = {"timestamp": t, "chain": chain, "url": url}
-
-            # Insert the field and value
-            pivot_data[key][field] = value
+            # Store the data in the appropriate dict
+            if url == "zzz - Max over time":
+                if key not in max_height_data:
+                    max_height_data[key] = {"timestamp": t, "chain": chain, "url": url}
+                max_height_data[key][field] = value
+            else:
+                if key not in block_height_data:
+                    block_height_data[key] = {"timestamp": t, "chain": chain, "url": url}
+                block_height_data[key][field] = value
 
     # Convert the dict-of-dicts into a list-of-dicts
-    return list(pivot_data.values())
+    return list(block_height_data.values()), list(max_height_data.values())
 
 
-def prepare_data_for_clickhouse(dict_rows: list[dict]) -> list[tuple]:
+def prepare_block_height_data_for_clickhouse(dict_rows: list[dict]) -> list[tuple]:
     """Convert listed dicts to a list matching the target table.
 
     Converts each dictionary in `dict_rows` into a tuple that matches
@@ -116,16 +121,21 @@ class BCMDataExporter:
     def connect_clickhouse(self) -> None:
         """Connect to ClickHouse."""
         try:
-            self.influx_client = clickhouse_connect.get_client(
+            if self.verbose:
+                logger.info("Connecting to ClickHouse...")
+
+            self.clickhouse_client = clickhouse_connect.get_client(
                 host=self.config.get("clickhouse-host"),
                 port=self.config.get("clickhouse-port"),
                 username=self.config.get("clickhouse-username"),
                 password=self.config.get("clickhouse-password"),
                 database="default",
             )
+
         except Exception as e:
             logger.error("Failed to connect to ClickHouse: %s", str(e))
             return None
+
         if self.verbose:
             logger.info("Connected to ClickHouse.")
 
@@ -157,7 +167,8 @@ class BCMDataExporter:
             logger.error("Failed querying influx: %s", str(e))
             return {}
 
-    def write_to_clickhouse(self, data: list[dict]) -> None:
+    # TODO: make this method more generic, for differente tables
+    def write_to_clickhouse_block_height_requests(self, table: str, data: list[dict]) -> None:
         """Write data to ClickHouse.
 
         'data' is expected to be a list of dictionaries, where each dictionary
@@ -167,7 +178,7 @@ class BCMDataExporter:
             self.connect_clickhouse()
 
         # Prepare data
-        prepared_data = prepare_data_for_clickhouse(data)
+        prepared_data = prepare_block_height_data_for_clickhouse(data)
 
         if (self.verbose or self.dry_run_ch) and prepared_data:
             logger.info("Prepared data for ClickHouse:")
@@ -178,6 +189,8 @@ class BCMDataExporter:
 
         # Insert into your table
         try:
+            if self.verbose:
+                logger.info("Writing to ClickHouse block_height_requests table...")
             summary = self.clickhouse_client.insert(
                 "block_height_requests",
                 prepared_data,
@@ -191,6 +204,7 @@ class BCMDataExporter:
                     "request_time_total",
                 ],
             )
+
             if self.verbose:
                 logger.info("Insert summary: %s", summary)
 
