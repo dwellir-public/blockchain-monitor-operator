@@ -466,11 +466,12 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
             response_dict = json.loads(response_json)
             block_height = get_highest_block(c.api_class, response_dict) if validate_response(response_dict) else None
         except (json.JSONDecodeError, TypeError) as e:
+            pruned_response = response_json[:512] + "..." if len(response_json) > 512 else response_json
             logger.warning(
                 "%s for request to [%s] with response: [%s], http_code: [%s], error: [%s]",
                 e.__class__.__name__,
                 c.getinfo(pycurl.EFFECTIVE_URL),
-                response_json,
+                pruned_response,
                 http_code,
                 e,
             )
