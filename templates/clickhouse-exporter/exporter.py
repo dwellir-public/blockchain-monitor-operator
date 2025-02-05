@@ -21,9 +21,9 @@ def get_influx_client(config: dict) -> InfluxDBClient:
     """Get InfluxDB client."""
     try:
         return InfluxDBClient(
-            url=config["INFLUXDB_URL"],
-            token=config["INFLUXDB_TOKEN"],
-            org=config["INFLUXDB_ORG"],
+            url=config["influxdb-url"],
+            token=config["influxdb-token"],
+            org=config["influxdb-org"],
         )
     except KeyError as e:
         logger.error("Failed to get InfluxDB client: %s", str(e))
@@ -50,8 +50,8 @@ class BCMDataExporter:
 
         # InfluxDB
         self.influx_client = get_influx_client(self.config)
-        self.influx_bucket = self.config.get("INFLUXDB_BUCKET")
-        self.influx_org = self.config.get("INFLUXDB_ORG")
+        self.influx_bucket = self.config.get("influxdb-bucket")
+        self.influx_org = self.config.get("influxdb-org")
         # ClickHouse
         self.clickhouse_client = None
 
@@ -59,10 +59,10 @@ class BCMDataExporter:
         """Connect to ClickHouse."""
         try:
             self.client = clickhouse_connect.get_client(
-                host=self.config.get("CH_HOST"),
-                port=self.config.get("CH_PORT"),
-                username=self.config.get("CH_USERNAME"),
-                password=self.config.get("CH_PASSWORD"),
+                host=self.config.get("clickhouse-host"),
+                port=self.config.get("clickhouse-port"),
+                username=self.config.get("clickhouse-username"),
+                password=self.config.get("clickhouse-password"),
                 database="default",
             )
         except Exception as e:
