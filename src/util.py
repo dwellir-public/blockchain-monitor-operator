@@ -1,89 +1,105 @@
 #!/usr/bin/env python3
 
-from pathlib import Path
-import subprocess as sp
-import shutil
+"""Utils for the BCM charm."""
+
 import json
+import shutil
+import subprocess as sp
+from pathlib import Path
 
 from ops.model import ConfigData
+
 import constants as c
 
 
 def install_apt_dependencies(script_path: Path) -> None:
+    """Install apt dependencies."""
     sp.run([script_path], check=True)
-    sp.run(['apt-get', 'update'], check=True)
-    sp.run(['apt', 'install', 'influxdb2', 'python3-pip', 'libcurl4-openssl-dev', 'libssl-dev', '-y'], check=True)
+    sp.run(["apt-get", "update"], check=True)
+    sp.run(["apt", "install", "influxdb2", "python3-pip", "libcurl4-openssl-dev", "libssl-dev", "-y"], check=True)
 
 
 def install_python_dependencies(requirements_file: Path) -> None:
+    """Install Python dependencies."""
     # Specifically point at the system's Python, to install modules on the system level
-    sp.run(['sudo', 'pip3', 'install', '-r', requirements_file], check=True)
+    sp.run(["sudo", "pip3", "install", "-r", requirements_file], check=True)
 
 
 def install_files():
-    shutil.copy('templates/monitor-blockchains.py', c.MONITOR_SCRIPT_PATH)
-    install_service_file(f'templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service', c.SERVICE_NAME_BC)
+    """Install the script and service files."""
+    shutil.copy("templates/monitor-blockchains.py", c.MONITOR_SCRIPT_PATH)
+    install_service_file(f"templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service", c.SERVICE_NAME_BC)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:
-    target_path = Path(f'/etc/systemd/system/{service_name.lower()}.service')
+    """Install a service file."""
+    target_path = Path(f"/etc/systemd/system/{service_name.lower()}.service")
     shutil.copyfile(source_path, target_path)
-    sp.run(['systemctl', 'daemon-reload'], check=False)
+    sp.run(["systemctl", "daemon-reload"], check=False)
 
 
 def setup_influxdb(bucket: str, org: str, username: str, password: str, retention: str) -> None:
+    """Set up InfluxDB."""
     for arg in [bucket, org, username, password, retention]:
         if not arg:
             raise ValueError("Argument in setup_influxdb() missing!")
-    sp.run(['systemctl', 'enable', 'influxdb', '--now'], check=True)
-    setup_command = ['influx', 'setup']
-    setup_command += ['--bucket', 'default']
-    setup_command += ['--org', org]
-    setup_command += ['--username', username]
-    setup_command += ['--password', password]
-    setup_command += ['--retention', retention]
-    setup_command += ['--force']
+    sp.run(["systemctl", "enable", "influxdb", "--now"], check=True)
+    setup_command = ["influx", "setup"]
+    setup_command += ["--bucket", "default"]
+    setup_command += ["--org", org]
+    setup_command += ["--username", username]
+    setup_command += ["--password", password]
+    setup_command += ["--retention", retention]
+    setup_command += ["--force"]
     sp.run(setup_command, check=True)
-    sp.run(f'influx auth create --write-buckets --read-buckets --json > {c.INFLUXDB_TOKEN_PATH}', shell=True, check=True)
-    sp.run(['influx', 'bucket', 'create', '-n', bucket, '-r', retention], check=True)
+    sp.run(
+        f"influx auth create --write-buckets --read-buckets --json > {c.INFLUXDB_TOKEN_PATH}", shell=True, check=True
+    )
+    sp.run(["influx", "bucket", "create", "-n", bucket, "-r", retention], check=True)
 
 
 def get_influxdb_token() -> str:
+    """Get the InfluxDB token."""
     if not c.INFLUXDB_TOKEN_PATH.exists():
         raise FileNotFoundError("Cannot find InfluxDB token file")
-    with open(c.INFLUXDB_TOKEN_PATH, 'r', encoding='utf-8') as f:
+    with open(c.INFLUXDB_TOKEN_PATH, "r", encoding="utf-8") as f:
         token_file = json.load(f)
-        token = token_file.get('token', '')
+        token = token_file.get("token", "")
         return token
 
 
 def update_monitor_config_file(config: ConfigData) -> None:
+    """Update the monitor config file."""
     monitoring_config = {}
-    monitoring_config['INFLUXDB_BUCKET'] = config.get('influxdb-bucket')
-    monitoring_config['INFLUXDB_ORG'] = config.get('influxdb-org')
-    monitoring_config['INFLUXDB_URL'] = config.get('influxdb-url')
-    monitoring_config['INFLUXDB_TOKEN'] = get_influxdb_token()
-    monitoring_config['REQUEST_INTERVAL'] = config.get('request-interval')
-    monitoring_config['REQUEST_CONCURRENCY'] = config.get('request-concurrency')
-    monitoring_config['RPC_ENDPOINT_DB_URL'] = config.get('rpc-endpoint-api-url')
-    monitoring_config['RPC_CACHE_MAX_AGE'] = config.get('rpc-endpoint-cache-age')
-    monitoring_config['LOG_LEVEL'] = config.get('log-level')
-    with open(c.MONITOR_CONFIG_PATH, 'w', encoding='utf-8') as f:
+    monitoring_config["INFLUXDB_BUCKET"] = config.get("influxdb-bucket")
+    monitoring_config["INFLUXDB_ORG"] = config.get("influxdb-org")
+    monitoring_config["INFLUXDB_URL"] = config.get("influxdb-url")
+    monitoring_config["INFLUXDB_TOKEN"] = get_influxdb_token()
+    monitoring_config["REQUEST_INTERVAL"] = config.get("request-interval")
+    monitoring_config["REQUEST_CONCURRENCY"] = config.get("request-concurrency")
+    monitoring_config["RPC_ENDPOINT_DB_URL"] = config.get("rpc-endpoint-api-url")
+    monitoring_config["RPC_CACHE_MAX_AGE"] = config.get("rpc-endpoint-cache-age")
+    monitoring_config["LOG_LEVEL"] = config.get("log-level")
+    with open(c.MONITOR_CONFIG_PATH, "w", encoding="utf-8") as f:
         json.dump(monitoring_config, f)
 
 
 def start_service(service_name: str) -> None:
-    sp.run(['systemctl', 'start', f'{service_name.lower()}.service'], check=False)
+    """Start a service."""
+    sp.run(["systemctl", "start", f"{service_name.lower()}.service"], check=False)
 
 
 def stop_service(service_name: str) -> None:
-    sp.run(['systemctl', 'stop', f'{service_name.lower()}.service'], check=False)
+    """Stop a service."""
+    sp.run(["systemctl", "stop", f"{service_name.lower()}.service"], check=False)
 
 
 def restart_service(service_name: str) -> None:
-    sp.run(['systemctl', 'restart', f'{service_name.lower()}.service'], check=False)
+    """Restart a service."""
+    sp.run(["systemctl", "restart", f"{service_name.lower()}.service"], check=False)
 
 
 def service_running(service_name: str) -> bool:
-    service_status = sp.run(['service', f'{service_name.lower()}', 'status'], stdout=sp.PIPE, check=False).returncode
+    """Check if a service is running."""
+    service_status = sp.run(["service", f"{service_name.lower()}", "status"], stdout=sp.PIPE, check=False).returncode
     return service_status == 0

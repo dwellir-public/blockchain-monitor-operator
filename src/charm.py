@@ -4,15 +4,16 @@
 #
 # Learn more at: https://juju.is/docs/sdk
 
+"""BCM charm."""
 
 import logging
 import time
 
 import ops
-from ops.model import ActiveStatus, MaintenanceStatus, BlockedStatus, WaitingStatus
-import util
-import constants as c
+from ops.model import ActiveStatus, BlockedStatus, MaintenanceStatus, WaitingStatus
 
+import constants as c
+import util
 
 logger = logging.getLogger(__name__)
 
@@ -36,25 +37,27 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_install(self, event: ops.InstallEvent) -> None:
         """Handle charm installation."""
-        self.unit.status = MaintenanceStatus('Installing apt dependencies')
+        self.unit.status = MaintenanceStatus("Installing apt dependencies")
         # TODO: apt-key used in script is deprecated, use gpg instead!
-        util.install_apt_dependencies(script_path=self.charm_dir / 'templates/add-influx-apt.sh')
-        self.unit.status = MaintenanceStatus('Installing Python dependencies')
-        util.install_python_dependencies(self.charm_dir / 'templates/requirements_monitor.txt')
-        self.unit.status = MaintenanceStatus('Setting up InfluxDB')
+        util.install_apt_dependencies(script_path=self.charm_dir / "templates/add-influx-apt.sh")
+        self.unit.status = MaintenanceStatus("Installing Python dependencies")
+        util.install_python_dependencies(self.charm_dir / "templates/requirements_monitor.txt")
+        self.unit.status = MaintenanceStatus("Setting up InfluxDB")
         try:
-            util.setup_influxdb(bucket=self.config.get('influxdb-bucket'),
-                                org=self.config.get('influxdb-org'),
-                                username=self.config.get('influxdb-username'),
-                                password=self.config.get('influxdb-password'),
-                                retention=self.config.get('influxdb-retention'))
+            util.setup_influxdb(
+                bucket=self.config.get("influxdb-bucket"),
+                org=self.config.get("influxdb-org"),
+                username=self.config.get("influxdb-username"),
+                password=self.config.get("influxdb-password"),
+                retention=self.config.get("influxdb-retention"),
+            )
         except ValueError as e:
             self.unit.status = BlockedStatus(str(e))
             event.defer()
             return
-        self.unit.status = MaintenanceStatus('Installing script and service')
+        self.unit.status = MaintenanceStatus("Installing script and service")
         util.install_files()
-        self.unit.status = ActiveStatus('Installation complete')
+        self.unit.status = ActiveStatus("Installation complete")
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
         """Handle changed configuration."""
@@ -102,16 +105,16 @@ class BlockchainMonitorCharm(ops.CharmBase):
 
     def _on_get_influxdb_info_action(self, event: ops.ActionEvent) -> None:
         """Gather and return info on the monitor's InfluxDB database."""
-        event.set_results(results={'bucket': self.config.get('influxdb-bucket')})
-        event.set_results(results={'org': self.config.get('influxdb-org')})
+        event.set_results(results={"bucket": self.config.get("influxdb-bucket")})
+        event.set_results(results={"org": self.config.get("influxdb-org")})
         try:
-            event.set_results(results={'token': util.get_influxdb_token()})
+            event.set_results(results={"token": util.get_influxdb_token()})
         except FileNotFoundError as e:
             logger.warning(e)
             event.fail("Could not read InfluxDB token from file")
 
     def _on_restart_bc_monitor_service_action(self, event: ops.ActionEvent) -> None:
-        """ Restart the Ubuntu service running the blockchain monitor app. """
+        """Restart the Ubuntu service running the blockchain monitor app."""
         util.restart_service(c.SERVICE_NAME_BC)
         time.sleep(1)
         if not util.service_running(c.SERVICE_NAME_BC):
@@ -119,12 +122,13 @@ class BlockchainMonitorCharm(ops.CharmBase):
         self.unit.status = ops.ActiveStatus("bc-monitor service restarted")
 
     def _on_restart_influxdb_service_action(self, event: ops.ActionEvent) -> None:
-        """ Restart the Ubuntu service running InfluxDB. """
+        """Restart the Ubuntu service running InfluxDB."""
         util.restart_service(c.SERVICE_NAME_INFLUX)
         time.sleep(1)
         if not util.service_running(c.SERVICE_NAME_INFLUX):
             event.fail("Could not restart InfluxDB service")
         self.unit.status = ops.ActiveStatus("InfluxDB service restarted")
+
 
 # TODO: add action to get info from endpointdb API (status of Flask endpoint, number of chains/RPC:s, time since update?)
 
