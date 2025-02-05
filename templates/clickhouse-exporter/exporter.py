@@ -59,7 +59,7 @@ class BCMDataExporter:
     def connect_clickhouse(self) -> None:
         """Connect to ClickHouse."""
         try:
-            self.client = clickhouse_connect.get_client(
+            self.influx_client = clickhouse_connect.get_client(
                 host=self.config.get("clickhouse-host"),
                 port=self.config.get("clickhouse-port"),
                 username=self.config.get("clickhouse-username"),
@@ -76,11 +76,13 @@ class BCMDataExporter:
         """Read from the InfluxDB."""
         # TODO: validate query options and returns
         try:
-            query_api = self.client.query_api()
-            query = f'from(bucket: "{self.influx_bucket}") \
-                |> range(start: {start}, stop: {stop}) \
-                |> filter(fn: (r) => r._measurement == "block_height_request") \
-                |> filter(fn: (r) => exists r._value)'
+            query_api = self.influx_client.query_api()
+            query = (
+                f'from(bucket: "{self.influx_bucket}") '
+                f'|> range(start: "{start}", stop: "{stop}") '
+                '|> filter(fn: (r) => r._measurement == "block_height_request") '
+                "|> filter(fn: (r) => exists r._value)"
+            )
             if self.verbose:
                 logger.info(f"Query: {query}")
             result = query_api.query(org=self.influx_org, query=query)

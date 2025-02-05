@@ -5,9 +5,9 @@ import argparse
 from exporter import BCMDataExporter
 
 
-async def main():
-    """Parse arguments and run the blockchecker."""
-    parser = argparse.ArgumentParser(description="Check EOS blocks for transactions with 'executed = false'.")
+def main():
+    """Parse arguments and run the exporter."""
+    parser = argparse.ArgumentParser(description="Runs the exporter.")
     parser.add_argument("--start", type=str, help="Start time", required=True)
     parser.add_argument("--end", type=str, help="End time", required=True)
     parser.add_argument("--dry-run", action="store_true", help="Dry run everything")

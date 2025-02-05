@@ -27,4 +27,4 @@ EXPORTER_INSTALL_FILES = [
     "templates/clickhouse-exporter/requirements.txt",
 ]
 EXPORTER_SERVICE_NAME = "clickhouse-exporter"
-EXPORTER_SERVICE_FILE = f"templates/eos-blockchecker/{EXPORTER_SERVICE_NAME}.service"
+EXPORTER_SERVICE_FILE = f"templates/clickhouse-exporter/{EXPORTER_SERVICE_NAME}.service"
