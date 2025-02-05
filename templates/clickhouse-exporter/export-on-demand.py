@@ -2,7 +2,7 @@
 
 import argparse
 
-from exporter import BCMDataExporter
+from exporter import BCMDataExporter, influx_result_to_list_of_dicts
 
 
 def main():
@@ -22,9 +22,10 @@ def main():
         verbose=args.verbose,
     )
 
-    # TODO: parse start and end times to correct format
+    # TODO: parse start and end times to the correct format if they're not already
     data = exporter.read_from_influx(start=args.start, stop=args.end)
-    print(data)
+    data_list = influx_result_to_list_of_dicts(data)
+    print(data_list[:3])  # Print the first three entries
 
 
 if __name__ == "__main__":
