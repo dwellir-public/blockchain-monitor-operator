@@ -232,6 +232,8 @@ class BCMDataExporter:
         - block_height_requests
         - max_height_over_time
         """
+        if self.verbose:
+            logger.info("ClickHouse write for table: %s", table)
         if not self.dry_run_ch and not self.clickhouse_client:
             self.connect_clickhouse()
 
@@ -239,8 +241,7 @@ class BCMDataExporter:
         prepared_data = prepare_data_for_clickhouse(table, data)
 
         if (self.verbose or self.dry_run_ch) and prepared_data:
-            logger.info("Prepared data for ClickHouse:")
-            logger.info("%s\n%s\n...", prepared_data[0], prepared_data[1])
+            logger.info("Prepared data for ClickHouse:\n%s\n...\n%s", prepared_data[0], prepared_data[-1])
         if self.dry_run_ch:
             logger.info("Dry run: skipping ClickHouse write.")
             return
@@ -262,3 +263,6 @@ class BCMDataExporter:
 
         except Exception as e:
             logger.error("Failed to write to ClickHouse: %s", str(e))
+
+        if self.verbose:
+            logger.info("ClickHouse write function done.")

@@ -39,8 +39,8 @@ def main():
     block_height_rows, max_height_rows = influx_result_to_list_of_dicts(data)
 
     if args.dev_filter_chain:
-        block_height_rows = [row for row in block_height_rows if row["chain"] == args.dev_filter_chain]
-        max_height_rows = [row for row in max_height_rows if row["chain"] == args.dev_filter_chain]
+        block_height_rows = [row for row in block_height_rows if args.dev_filter_chain.lower() in row["chain"].lower()]
+        max_height_rows = [row for row in max_height_rows if args.dev_filter_chain.lower() in row["chain"].lower()]
 
     if args.verbose and block_height_rows:
         print(block_height_rows[0])
