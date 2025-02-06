@@ -10,7 +10,8 @@ SELECT
     avgMerge(latency_avg) AS latency_avg,
     quantilesMerge(0.5, 0.95, 0.99)(latency_quantiles) [1] AS latency_p95,
     quantilesMerge(0.5, 0.95, 0.99)(latency_quantiles) [2] AS latency_p99,
-    countIfMerge(uptime_count) / countMerge(total_count) AS uptime_ratio
+    countIfMerge(uptime_count) / countMerge(total_count) AS uptime_ratio,
+    countMerge(total_count) AS total_data_points
 FROM
     block_height_analysis_hourly
 WHERE
@@ -19,7 +20,9 @@ WHERE
 GROUP BY
     chain,
     url,
-    hour;
+    hour
+LIMIT
+    10;
 
 -- INSERT INTO block_height_analysis_hourly table example, which can be used for backfilling data
 -- Note 1: Use with caution. If used, this insert should match the current version of the 
