@@ -256,7 +256,7 @@ class BCMDataExporter:
 
             columns = get_column_names(table)
             summary = self.clickhouse_client.insert(
-                table_name=table,
+                table=table,
                 data=prepared_data,
                 column_names=columns,
             )
