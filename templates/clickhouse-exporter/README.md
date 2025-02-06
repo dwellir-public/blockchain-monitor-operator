@@ -15,7 +15,7 @@ For the service to work, the `clickhouse-exporter` needs access to a ClickHouse 
 1. Relating the BCM charm to a ClickHouse charm, and letting the charm code set the configuration. This is the preferred way, done by `juju integrate <blockchain-monitor charm> <clickhouse charm>`.
 2. Manually setting the `clickhouse-` fields in the `exporter-config.yaml` file.
 
-The database itself needs to be set up separately, and the exporter will not create the database or tables for you. However, this repository contains SQL files for the necessary migrations, which can be run manually once you have set up the ClickHouse database. See the `migrations` directory for these files, and these instructions for how to apply them:
+The database itself needs to be set up separately, and the exporter will not create the database or tables for you. However, this repository contains SQL files for the necessary migrations, which can be run manually once you have set up the ClickHouse database. See the [sql](./sql/) directory for files containing the necessary SQL statements, and these instructions for how to apply them:
 
 ```bash
 # Get the admin password from the ClickHouse charm
@@ -26,10 +26,17 @@ juju ssh <clickhouse unit>
 
 # Access the default databse via the clickhouse-client
 clickhouse-client -d default -u admin --password <password>
+# Alernatively use the user that the charm sets up
+clickhouse-client -d default -u relation_X --password <password>
 
-# Run the migrations by copy-pasting the contents of the files
+# Run the setup by copy-pasting the contents of the files
+# mig001:
 CREATE TABLE IF NOT EXISTS block_height_requests (
 ...
+# mig002:
+CREATE TABLE IF NOT EXISTS max_height_over_time (
+...
+# etc
 ```
 
 ### pip installs
