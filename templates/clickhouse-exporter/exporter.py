@@ -1,6 +1,8 @@
 """InfluxDB to ClickHouse data exporter.
 
-TODO: write description
+This Python module provides functionality to export data from InfluxDB to ClickHouse
+for the BCM app. The exporter can be run on demand or as a service with separate scripts,
+making use of the BCMDataExporter class defined here.
 """
 
 import logging
@@ -201,7 +203,6 @@ class BCMDataExporter:
         The start and stop times should be in RFC3339 format. The range function in Flux
         is inclusive of the start time and exclusive of the stop time.
         """
-        # TODO: validate query options and returns
         try:
             query_api = self.influx_client.query_api()
             query = (
