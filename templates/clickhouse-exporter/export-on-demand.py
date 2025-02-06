@@ -21,6 +21,7 @@ def main():
     argparser.add_argument("--end", type=str, help="End datetime UTC (exclusive)", required=True)
     argparser.add_argument("--dry-run", action="store_true", help="Dry run everything")
     argparser.add_argument("--dry-run-ch", action="store_true", help="Query InfluxDB, but do not save to ClickHouse")
+    argparser.add_argument("--dev-filter-chain", type=str, help="DEV setting: filter results on this chain")
     argparser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     # parser.add_argument("-o", "--output", type=str, help="Output file to save results")
     args = argparser.parse_args()
@@ -36,6 +37,10 @@ def main():
 
     data = exporter.read_from_influx(start=start_datetime, stop=end_datetime)
     block_height_rows, max_height_rows = influx_result_to_list_of_dicts(data)
+
+    if args.dev_filter_chain:
+        block_height_rows = [row for row in block_height_rows if row["chain"] == args.dev_filter_chain]
+        max_height_rows = [row for row in max_height_rows if row["chain"] == args.dev_filter_chain]
 
     if args.verbose and block_height_rows:
         print(block_height_rows[0])
