@@ -2,6 +2,7 @@
 
 """Utils for the BCM charm."""
 
+import filecmp
 import json
 import logging
 import shutil
@@ -29,13 +30,26 @@ def install_python_dependencies(requirements_file: Path) -> None:
     sp.run(["sudo", "pip3", "install", "-r", requirements_file], check=True)
 
 
-def install_files():
+def install_bcm(restart_service: bool = False) -> None:
     """Install the script and service files."""
-    # BCM
     logger.info("Installing BCM monitor script...")
-    shutil.copy("templates/monitor-blockchains.py", c.MONITOR_SCRIPT_PATH)
-    install_service_file(f"templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service", c.SERVICE_NAME_BC)
-    # Exporter
+    copied_script = copy_if_different(
+        "templates/monitor-blockchains.py",
+        c.MONITOR_SCRIPT_PATH,
+    )
+    copied_service = copy_if_different(
+        f"templates/etc/systemd/system/{c.SERVICE_NAME_BC}.service",
+        Path(f"/etc/systemd/system/{c.SERVICE_NAME_BC.lower()}.service"),
+    )
+    if any([copied_script, copied_service]) and restart_service:
+        restart_service(c.SERVICE_NAME_BC)
+        sp.run(["systemctl", "daemon-reload"], check=False)
+    else:
+        logger.info("Skipped restarting service")
+
+
+def install_ch_exporter():
+    """Install the ClickHouse exporter."""
     logger.info("Installing ClickHouse exporter...")
     c.EXPORTER_DIR.mkdir(exist_ok=True)
     for file in c.EXPORTER_INSTALL_FILES:
@@ -45,9 +59,12 @@ def install_files():
     # Configure exporter
     # TODO: check for influx fields, check for clickhouse fields
     # Install service file
-    target_path_service = Path(f"/etc/systemd/system/{c.EXPORTER_SERVICE_NAME}.service")
-    shutil.copyfile(c.EXPORTER_SERVICE_FILE, target_path_service)
-    sp.run(["systemctl", "daemon-reload"], check=False)
+    copied_service = copy_if_different(
+        c.EXPORTER_SERVICE_FILE,
+        Path(f"/etc/systemd/system/{c.EXPORTER_SERVICE_NAME}.service"),
+    )
+    if copied_service:
+        sp.run(["systemctl", "daemon-reload"], check=False)
 
 
 def install_service_file(source_path: str, service_name: str) -> None:
@@ -55,6 +72,17 @@ def install_service_file(source_path: str, service_name: str) -> None:
     target_path = Path(f"/etc/systemd/system/{service_name.lower()}.service")
     shutil.copyfile(source_path, target_path)
     sp.run(["systemctl", "daemon-reload"], check=False)
+
+
+def copy_if_different(src, dst) -> bool:
+    """Copy a file if it is different."""
+    if not Path(dst).exists() or not filecmp.cmp(src, dst, shallow=False):
+        shutil.copy(src, dst)
+        logger.info(f"Copied {src} to {dst}")
+        return True
+    else:
+        logger.info(f"Skipped copying {src} to {dst} as they are identical")
+        return False
 
 
 def setup_influxdb(bucket: str, org: str, username: str, password: str, retention: str) -> None:

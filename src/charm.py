@@ -62,7 +62,8 @@ class BlockchainMonitorCharm(ops.CharmBase):
             event.defer()
             return
         self.unit.status = MaintenanceStatus("Installing script and service")
-        util.install_files()
+        util.install_bcm(restart_service=False)
+        util.install_ch_exporter()
         self.unit.status = ActiveStatus("Installation complete")
 
     def _on_config_changed(self, event: ops.ConfigChangedEvent):
@@ -109,9 +110,8 @@ class BlockchainMonitorCharm(ops.CharmBase):
     def _on_upgrade_charm(self, event: ops.UpgradeCharmEvent):
         """Handle charm upgrade."""
         # TODO: also restart exporter service
-        util.stop_service(c.SERVICE_NAME_BC)
-        util.install_files()
-        util.start_service(c.SERVICE_NAME_BC)
+        util.install_bcm(restart_service=True)
+        util.install_ch_exporter()
         self._update_status()
 
     # # # Actions
