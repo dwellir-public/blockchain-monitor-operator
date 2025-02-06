@@ -128,10 +128,13 @@ def prepare_block_height_request_data(dict_rows: list[dict]) -> list[tuple]:
     """
     prepared_rows = []
     for d in dict_rows:
+        # Handle special case, as some older data contains this API key in the URL
+        chain = d["chain"].replace("/12345678-f359-43a8-89aa-3219a362396f", "")
+
         prepared_rows.append(
             (
                 d["timestamp"],  # DateTime
-                d["chain"],  # String
+                chain,  # String
                 d["url"],  # String
                 d.get("block_height", 0),  # Int64 (default 0 if missing)
                 d.get("block_height_diff", 0),  # Int64 (default 0 if missing)
