@@ -4,10 +4,9 @@ Should be run in a service in the same container as BCM, hence why it is include
 """
 
 import asyncio
-import logging
 
 import schedule
-from exporter import load_exporter_config
+from exporter import load_exporter_config, logger
 
 
 def enabled() -> bool:
@@ -17,7 +16,7 @@ def enabled() -> bool:
 
 async def init():
     """Initialize the exporter service."""
-    logging.info("Initializing exporter service...")
+    logger.info("Initializing exporter service...")
     # TODO: implement
 
 
@@ -41,7 +40,7 @@ async def main():
 
 if __name__ == "__main__":
     if not enabled():
-        logging.info("Exporter is disabled.")
+        logger.info("Exporter is disabled.")
         exit(0)
 
     asyncio.run(main())

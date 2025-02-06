@@ -1,9 +1,53 @@
 """Utilize the exporter logic to export from BCM's InfluxDB to ClickHouse on demand."""
 
 import argparse
+import time
+from datetime import datetime, timedelta
 
 from dateutil import parser
-from exporter import BCMDataExporter, influx_result_to_list_of_dicts
+from exporter import BCMDataExporter, influx_result_to_list_of_dicts, logger
+
+
+def export_and_write(
+    start_datetime: datetime,
+    end_datetime: datetime,
+    args: argparse.Namespace,
+    exporter: BCMDataExporter,
+):
+    """Export data from InfluxDB and write it to ClickHouse."""
+    logger.info(f"Exporting data from {start_datetime} to {end_datetime}...")
+
+    start_rfc3339 = start_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
+    end_rfc3339 = end_datetime.strftime("%Y-%m-%dT%H:%M:%SZ")
+    data = exporter.read_from_influx(start=start_rfc3339, stop=end_rfc3339)
+    block_heights, max_heights = influx_result_to_list_of_dicts(data)
+
+    if args.dev_filter_chain:
+        block_heights = [row for row in block_heights if args.dev_filter_chain.lower() in row["chain"].lower()]
+        max_heights = [row for row in max_heights if args.dev_filter_chain.lower() in row["chain"].lower()]
+
+    if args.verbose and block_heights:
+        print(block_heights[0])
+    if args.verbose and max_heights:
+        print(max_heights[0])
+
+    exporter.write_to_clickhouse("block_height_requests", block_heights)
+    exporter.write_to_clickhouse("max_height_over_time", max_heights)
+
+
+def split_into_intervals(start_dt: datetime, end_dt: datetime, delta_minutes: int) -> list[tuple[datetime, datetime]]:
+    """Yield (interval_start, interval_end) pairs in steps of `delta_minutes`.
+
+    The last interval may be shorter if `end_dt - start_dt` isn't an exact multiple.
+    """
+    current = start_dt
+    delta = timedelta(minutes=delta_minutes)
+    while current < end_dt:
+        next_dt = current + delta
+        if next_dt > end_dt:
+            next_dt = end_dt
+        yield (current, next_dt)
+        current = next_dt
 
 
 def to_rfc3339(datetime_str: str) -> str:
@@ -34,26 +78,24 @@ def main():
         verbose=args.verbose,
     )
 
-    start_datetime = to_rfc3339(args.start)
-    end_datetime = to_rfc3339(args.end)
+    start_datetime = parser.isoparse(args.start)
+    end_datetime = parser.isoparse(args.end)
 
     if args.one_hit:
-        data = exporter.read_from_influx(start=start_datetime, stop=end_datetime)
-        block_heights, max_heights = influx_result_to_list_of_dicts(data)
+        logger.info("One-hit mode")
+        export_and_write(start_datetime, end_datetime, args, exporter)
 
-        if args.dev_filter_chain:
-            block_heights = [row for row in block_heights if args.dev_filter_chain.lower() in row["chain"].lower()]
-            max_heights = [row for row in max_heights if args.dev_filter_chain.lower() in row["chain"].lower()]
-
-        if args.verbose and block_heights:
-            print(block_heights[0])
-        if args.verbose and max_heights:
-            print(max_heights[0])
-
-        exporter.write_to_clickhouse("block_height_requests", block_heights)
-        exporter.write_to_clickhouse("max_height_over_time", max_heights)
     elif args.run_job:
-        raise NotImplementedError("Repeating job not implemented yet")
+        logger.info("Run-job mode")
+        logger.info(f"Exporting data in interval [{start_datetime}, {end_datetime})")
+
+        interval = 5
+        intervals = split_into_intervals(start_datetime, end_datetime, delta_minutes=interval)
+
+        for interval_start, interval_end in intervals:
+            export_and_write(interval_start, interval_end, args, exporter)
+            time.sleep(3)  # Sleep 3 seconds to prevent overloading any DB
+
     else:
         raise ValueError("Invalid mode")
 
