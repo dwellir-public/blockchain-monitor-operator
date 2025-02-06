@@ -32,6 +32,28 @@ def get_influx_client(config: dict) -> InfluxDBClient:
         return None
 
 
+def get_column_names(table: str) -> list[str]:
+    """Get the column names for the ClickHouse table."""
+    if table == "block_height_requests":
+        return [
+            "timestamp",
+            "chain",
+            "url",
+            "block_height",
+            "block_height_diff",
+            "http_code",
+            "request_time_total",
+        ]
+    elif table == "max_height_over_time":
+        return [
+            "timestamp",
+            "chain",
+            "block_height",
+        ]
+    else:
+        raise ValueError(f"Unknown table: {table}")
+
+
 def load_exporter_config() -> dict:
     """Load the configuration from the exporter config file."""
     if not CONFIG_FILE.exists():
@@ -80,8 +102,24 @@ def influx_result_to_list_of_dicts(result: TableList) -> (list[dict], list[dict]
     return list(block_height_data.values()), list(max_height_data.values())
 
 
-def prepare_block_height_data_for_clickhouse(dict_rows: list[dict]) -> list[tuple]:
-    """Convert listed dicts to a list matching the target table.
+def prepare_data_for_clickhouse(table: str, dict_rows: list[dict]) -> list[tuple]:
+    """Prepare data for insertion into ClickHouse.
+
+    Converts the list of dictionaries into a list of tuples that match the
+    column order in the ClickHouse table provided. Valid tables are:
+    - block_height_requests
+    - max_height_over_time
+    """
+    if table == "block_height_requests":
+        return prepare_block_height_request_data(dict_rows)
+    elif table == "max_height_over_time":
+        return prepare_max_height_over_time_data(dict_rows)
+    else:
+        raise ValueError(f"Unknown table: {table}")
+
+
+def prepare_block_height_request_data(dict_rows: list[dict]) -> list[tuple]:
+    """Convert listed dicts to a list matching the block_height_requests table.
 
     Converts each dictionary in `dict_rows` into a tuple that matches
     the column order in the ClickHouse table, and returns a list of these tuples.
@@ -97,6 +135,24 @@ def prepare_block_height_data_for_clickhouse(dict_rows: list[dict]) -> list[tupl
                 d.get("block_height_diff", 0),  # Int64 (default 0 if missing)
                 d.get("http_code", 0),  # Int64 (default 0 if missing)
                 d.get("request_time_total", 0.0),  # Float64 (default 0.0 if missing)
+            )
+        )
+    return prepared_rows
+
+
+def prepare_max_height_over_time_data(dict_rows: list[dict]) -> list[tuple]:
+    """Convert listed dicts to a list matching the max_height_over_time table.
+
+    Converts each dictionary in `dict_rows` into a tuple that matches
+    the column order in the ClickHouse table, and returns a list of these tuples.
+    """
+    prepared_rows = []
+    for d in dict_rows:
+        prepared_rows.append(
+            (
+                d["timestamp"],  # DateTime
+                d["chain"],  # String
+                d.get("block_height", 0),  # Int64 (default 0 if missing)
             )
         )
     return prepared_rows
@@ -167,18 +223,19 @@ class BCMDataExporter:
             logger.error("Failed querying influx: %s", str(e))
             return {}
 
-    # TODO: make this method more generic, for differente tables
-    def write_to_clickhouse_block_height_requests(self, table: str, data: list[dict]) -> None:
+    def write_to_clickhouse(self, table: str, data: list[dict]) -> None:
         """Write data to ClickHouse.
 
         'data' is expected to be a list of dictionaries, where each dictionary
-        represents a row of data.
+        represents a row of data in the target `table`. Valid tables are:
+        - block_height_requests
+        - max_height_over_time
         """
         if not self.dry_run_ch and not self.clickhouse_client:
             self.connect_clickhouse()
 
         # Prepare data
-        prepared_data = prepare_block_height_data_for_clickhouse(data)
+        prepared_data = prepare_data_for_clickhouse(table, data)
 
         if (self.verbose or self.dry_run_ch) and prepared_data:
             logger.info("Prepared data for ClickHouse:")
@@ -187,22 +244,16 @@ class BCMDataExporter:
             logger.info("Dry run: skipping ClickHouse write.")
             return
 
-        # Insert into your table
+        # Insert into the target table
         try:
             if self.verbose:
-                logger.info("Writing to ClickHouse block_height_requests table...")
+                logger.info(f"Writing to ClickHouse {table} table...")
+
+            columns = get_column_names(table)
             summary = self.clickhouse_client.insert(
                 "block_height_requests",
                 prepared_data,
-                column_names=[
-                    "timestamp",
-                    "chain",
-                    "url",
-                    "block_height",
-                    "block_height_diff",
-                    "http_code",
-                    "request_time_total",
-                ],
+                column_names=columns,
             )
 
             if self.verbose:
@@ -210,9 +261,3 @@ class BCMDataExporter:
 
         except Exception as e:
             logger.error("Failed to write to ClickHouse: %s", str(e))
-
-        # Always good to close
-        try:
-            self.clickhouse_client.close()
-        except Exception as e:
-            logger.error("Failed to close ClickHouse connection: %s", str(e))

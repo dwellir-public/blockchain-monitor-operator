@@ -24,12 +24,15 @@ def main():
 
     # TODO: parse start and end times to the correct format if they're not already
     data = exporter.read_from_influx(start=args.start, stop=args.end)
-    rows = influx_result_to_list_of_dicts(data)
+    block_height_rows, max_height_rows = influx_result_to_list_of_dicts(data)
 
-    if args.verbose and rows:
-        print(rows[0])
+    if args.verbose and block_height_rows:
+        print(block_height_rows[0])
+    if args.verbose and max_height_rows:
+        print(max_height_rows[0])
 
-    exporter.write_to_clickhouse(rows)
+    exporter.write_to_clickhouse("block_height_requests", block_height_rows)
+    exporter.write_to_clickhouse("max_height_over_time", max_height_rows)
 
 
 if __name__ == "__main__":
