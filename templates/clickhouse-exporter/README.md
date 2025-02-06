@@ -32,6 +32,17 @@ CREATE TABLE IF NOT EXISTS block_height_requests (
 ...
 ```
 
+### pip installs
+
+Some of the Python packages used by the exporter, are not installed by the charm. This is because it is a separate tool that is sort of an addon. To install the required packages, run the following commands:
+
+```bash
+# SSH into the container
+sudo apt install python3-pip
+pip install -r /home/ubuntu/clickhouse-exporter/requirements.txt
+```
+
+
 ## Usage
 
 ### Service
