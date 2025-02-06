@@ -463,6 +463,8 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
     if not http_code:
         http_code = c.getinfo(pycurl.HTTP_CODE)
 
+    trimmed_url = c.url.replace("/12345678-f359-43a8-89aa-3219a362396f", "")
+
     if not block_height:
         response_json = c.response_buffer.getvalue().decode("utf-8")
         try:
@@ -480,7 +482,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
             )
             return {
                 "chain": c.chain,
-                "url": c.url,
+                "url": trimmed_url,
                 # "http_code": parse_error_code(response_json) if "error code:" in str(response_json) else None,
                 "http_code": http_code,
                 "latest_block_height": None,
@@ -489,13 +491,13 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
         except AttributeError:
             logger.warning(
                 "AttributeError for request to [%s] with response: [%s], http_code: [%s]",
-                c.url,
+                trimmed_url,
                 response_json,
                 http_code,
             )
             return {
                 "chain": c.chain,
-                "url": c.url,
+                "url": trimmed_url,
                 "http_code": http_code,
                 "latest_block_height": None,
                 "time_total": total_time,
@@ -503,7 +505,7 @@ def get_result(c: pycurl.Curl, block_height: int = None, http_code: int = None) 
 
     return {
         "chain": c.chain,
-        "url": c.url,
+        "url": trimmed_url,
         "http_code": http_code,
         "time_total": total_time,
         "latest_block_height": block_height,
