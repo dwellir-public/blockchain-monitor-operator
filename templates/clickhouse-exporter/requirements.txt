@@ -4,3 +4,4 @@ influxdb
 influxdb-client
 clickhouse-connect
 python-dateutil
+numpy

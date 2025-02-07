@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 
 import clickhouse_connect
+import numpy as np
 import yaml
 from influxdb_client import InfluxDBClient
 from influxdb_client.client.flux_table import TableList
@@ -130,6 +131,8 @@ def prepare_block_height_request_data(dict_rows: list[dict]) -> list[tuple]:
     for d in dict_rows:
         # Handle special case, as some older data contains this API key in the URL
         url = d["url"].replace("/12345678-f359-43a8-89aa-3219a362396f", "")
+        http_code = np.int32(d.get("http_code", 0))
+        request_time = np.float32(d.get("request_time_total", 0.0))
 
         prepared_rows.append(
             (
@@ -138,8 +141,8 @@ def prepare_block_height_request_data(dict_rows: list[dict]) -> list[tuple]:
                 url,  # String
                 d.get("block_height", 0),  # Int64 (default 0 if missing)
                 d.get("block_height_diff", 0),  # Int64 (default 0 if missing)
-                d.get("http_code", 0),  # Int64 (default 0 if missing)
-                d.get("request_time_total", 0.0),  # Float64 (default 0.0 if missing)
+                http_code,  # Int32 (default 0 if missing)
+                request_time,  # Float32 (default 0.0 if missing)
             )
         )
     return prepared_rows

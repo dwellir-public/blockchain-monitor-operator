@@ -1,14 +1,14 @@
 -- Add block_height_analysis_hourly table and mv_block_height_analysis_hourly materialized view
 CREATE TABLE IF NOT EXISTS block_height_analysis_hourly (
     hour DateTime,
-    chain String,
-    url String,
+    chain LowCardinality(String),
+    url LowCardinality(String),
     block_height_max AggregateFunction(max, Int64),
     block_height_diff_avg AggregateFunction(avg, Int64),
     block_height_diff_max AggregateFunction(max, Int64),
     block_height_diff_med AggregateFunction(median, Int64),
-    latency_avg AggregateFunction(avg, Float64),
-    latency_quantiles AggregateFunction(quantiles(0.5, 0.95, 0.99), Float64),
+    latency_avg AggregateFunction(avg, Float32),
+    latency_quantiles AggregateFunction(quantiles(0.5, 0.95, 0.99), Float32),
     uptime_count AggregateFunction(countIf, UInt8),
     total_count AggregateFunction(count, Nothing)
 ) ENGINE = AggregatingMergeTree()
@@ -31,21 +31,21 @@ SELECT
 FROM
     block_height_requests
 GROUP BY
-    hour,
     chain,
-    url;
+    url,
+    hour;
 
 -- Add block_height_analysis_daily table and mv_block_height_analysis_daily materialized view
 CREATE TABLE IF NOT EXISTS block_height_analysis_daily (
     day DateTime,
-    chain String,
-    url String,
+    chain LowCardinality(String),
+    url LowCardinality(String),
     block_height_max AggregateFunction(max, Int64),
     block_height_diff_avg AggregateFunction(avg, Int64),
     block_height_diff_max AggregateFunction(max, Int64),
     block_height_diff_med AggregateFunction(median, Int64),
-    latency_avg AggregateFunction(avg, Float64),
-    latency_quantiles AggregateFunction(quantiles(0.5, 0.95, 0.99), Float64),
+    latency_avg AggregateFunction(avg, Float32),
+    latency_quantiles AggregateFunction(quantiles(0.5, 0.95, 0.99), Float32),
     uptime_count AggregateFunction(countIf, UInt8),
     total_count AggregateFunction(count, Nothing)
 ) ENGINE = AggregatingMergeTree()
@@ -68,6 +68,6 @@ SELECT
 FROM
     block_height_requests
 GROUP BY
-    day,
     chain,
-    url;
+    url,
+    day;

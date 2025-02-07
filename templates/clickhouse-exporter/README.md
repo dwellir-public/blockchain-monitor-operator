@@ -33,10 +33,7 @@ clickhouse-client -d default -u relation_X --password <password>
 # mig001:
 CREATE TABLE IF NOT EXISTS block_height_requests (
 ...
-# mig002:
-CREATE TABLE IF NOT EXISTS max_height_over_time (
-...
-# etc
+# mig002 etc
 ```
 
 ### pip installs
