@@ -1,0 +1,14 @@
+[Unit]
+Description=BCM ClickHouse Exporter
+After=network.target
+Documentation=https://github.com/dwellir-public/blockchain-monitor
+
+[Service]
+ExecStart=python3 /home/ubuntu/clickhouse-exporter/exporter-service.py
+User=ubuntu
+Group=ubuntu
+Restart=always
+RestartSec=60
+
+[Install]
+WantedBy=multi-user.target

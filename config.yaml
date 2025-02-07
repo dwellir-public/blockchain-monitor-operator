@@ -33,6 +33,13 @@ options:
     default: "INFO"
     type: string
 
+  # ClickHouse exporter
+  clickhouse-exporter-enabled:
+    description: |
+      Whether to enable the ClickHouse exporter.
+    default: False
+    type: boolean
+
   # InfluxDB settings
   influxdb-url:
     description: |
