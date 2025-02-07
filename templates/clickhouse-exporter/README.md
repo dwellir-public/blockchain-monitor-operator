@@ -224,7 +224,7 @@ Get average latency for URL https://api-eth-mainnet-full.dwellir.com during the 
 
 ```sql
 SELECT
-    chain,
+    url,
     avgMerge(latency_avg) AS monthly_avg
 FROM
     block_height_analysis_daily
@@ -233,7 +233,7 @@ WHERE
     AND day >= '2025-02-01 00:00:00'
     AND day < '2025-03-01 00:00:00'
 GROUP BY
-    chain;
+    url;
 ```
 
 Get uptime for URL:s that contains the string "n.dwellir.com" during the first week of 2025-02:
