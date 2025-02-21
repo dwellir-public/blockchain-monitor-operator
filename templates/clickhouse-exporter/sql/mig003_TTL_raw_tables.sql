@@ -2,9 +2,9 @@
 ALTER TABLE
     block_height_requests
 MODIFY
-    TTL timestamp + INTERVAL 2 MONTH;
+    TTL timestamp + INTERVAL 45 DAY;
 
 ALTER TABLE
     max_height_over_time
 MODIFY
-    TTL timestamp + INTERVAL 2 MONTH;
+    TTL timestamp + INTERVAL 45 DAY;
