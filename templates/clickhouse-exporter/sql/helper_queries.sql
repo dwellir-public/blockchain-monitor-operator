@@ -52,3 +52,20 @@ GROUP BY
     hour,
     chain,
     url;
+
+-- SELECT query example, for getting the top 10 tables by disk usage
+SELECT
+    database,
+    `table`,
+    round((sum(bytes_on_disk) / 1024) / 1024, 2) AS mb_on_disk
+FROM
+    system.parts
+WHERE
+    active = 1
+GROUP BY
+    database,
+    `table`
+ORDER BY
+    mb_on_disk DESC
+LIMIT
+    10;

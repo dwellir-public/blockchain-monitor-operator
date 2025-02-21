@@ -9,6 +9,17 @@ ALTER TABLE
 MODIFY
     TTL timestamp + INTERVAL 1 YEAR;
 
+-- Set a 2 day TTL for the system log tables, to limit disk usage
+ALTER TABLE
+    system.asynchronous_metric_log
+MODIFY
+    TTL event_time + INTERVAL 2 DAY;
+
+ALTER TABLE
+    system.metric_log
+MODIFY
+    TTL event_time + INTERVAL 2 DAY;
+
 ALTER TABLE
     system.text_log
 MODIFY
