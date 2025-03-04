@@ -8,6 +8,25 @@ from dateutil import parser
 from exporter import BCMDataExporter, influx_result_to_list_of_dicts, logger
 
 
+def check_ch_count(
+    start_datetime: datetime,
+    end_datetime: datetime,
+    args: argparse.Namespace,
+    exporter: BCMDataExporter,
+) -> int:
+    """Check the count of items in ClickHouse during the select timeperiod."""
+    logger.info(f"Checking count of items in ClickHouse from {start_datetime} to {end_datetime}...")
+
+    start = start_datetime.strftime("%Y-%m-%d %H:%M:%S")
+    end = end_datetime.strftime("%Y-%m-%d %H:%M:%S")
+    count = exporter.count_in_clickhouse("block_height_requests", start=start, stop=end)
+
+    if args.verbose:
+        logger.info(f"Count of items in ClickHouse: {count}")
+
+    return count
+
+
 def export_and_write(
     start_datetime: datetime,
     end_datetime: datetime,
@@ -68,6 +87,7 @@ def main():
     argparser.add_argument("--end", type=str, help="End datetime UTC (exclusive)", required=True)
     argparser.add_argument("--dry-run", action="store_true", help="Dry run everything")
     argparser.add_argument("--dry-run-ch", action="store_true", help="Query InfluxDB, but do not save to ClickHouse")
+    argparser.add_argument("--patch", action="store_true", help="Patch holes in data instead of inserting (run-job)")
     argparser.add_argument("--dev-filter-chain", type=str, help="DEV setting: filter results on this chain")
     argparser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
     args = argparser.parse_args()
@@ -93,7 +113,12 @@ def main():
         intervals = split_into_intervals(start_datetime, end_datetime, delta_minutes=interval)
 
         for interval_start, interval_end in intervals:
-            export_and_write(interval_start, interval_end, args, exporter)
+            if args.patch:
+                count = check_ch_count(interval_start, interval_end, args, exporter)
+                if count > 0:
+                    logger.info("Skipping interval due to existing data")
+                    continue
+            # export_and_write(interval_start, interval_end, args, exporter)
             time.sleep(3)  # Sleep 3 seconds to prevent overloading any DB
 
     else:

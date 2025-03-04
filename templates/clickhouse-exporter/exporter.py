@@ -203,6 +203,34 @@ class BCMDataExporter:
         if self.verbose:
             logger.info("Connected to ClickHouse.")
 
+    def count_in_clickhouse(self, table: str, start: str, stop: str) -> int:
+        """Count the number of rows in the ClickHouse table within the given time range."""
+        if self.verbose:
+            logger.info(f"Counting rows in ClickHouse {table} table...")
+
+        if not self.clickhouse_client:
+            self.connect_clickhouse()
+
+        query = f"SELECT count() FROM {table} WHERE timestamp >= '{start}' AND timestamp < '{stop}'"
+        if self.verbose:
+            logger.info(f"Query: {query}")
+        if self.dry_run_ch:
+            logger.info("Dry run: skipping ClickHouse count.")
+            return 0
+
+        try:
+            result = self.clickhouse_client.query(query)
+            count = result[0][0]
+
+            if self.verbose:
+                logger.info(f"Counted {count} rows in ClickHouse {table} table.")
+
+            return count
+
+        except Exception as e:
+            logger.error("Failed to count rows in ClickHouse: %s", str(e))
+            return 0
+
     def read_from_influx(self, start: str, stop: str) -> TableList:
         """Read from the InfluxDB.
 
