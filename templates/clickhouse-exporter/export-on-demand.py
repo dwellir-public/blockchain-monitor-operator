@@ -118,8 +118,14 @@ def main():
                 if count > 0:
                     logger.info("Skipping interval due to existing data")
                     continue
-            # export_and_write(interval_start, interval_end, args, exporter)
-            time.sleep(3)  # Sleep 3 seconds to prevent overloading any DB
+                elif count == -1:
+                    logger.info("Error occurred, skipping interval")
+                    continue
+                else:
+                    logger.info("No data found in ClickHouse, exporting and writing...")
+
+            export_and_write(interval_start, interval_end, args, exporter)
+            time.sleep(2)  # Sleep 2 seconds to prevent overloading any DB
 
     else:
         raise ValueError("Invalid mode")

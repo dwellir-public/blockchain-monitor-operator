@@ -216,11 +216,16 @@ class BCMDataExporter:
             logger.info(f"Query: {query}")
         if self.dry_run_ch:
             logger.info("Dry run: skipping ClickHouse count.")
-            return 0
+            return -1
 
         try:
             result = self.clickhouse_client.query(query)
-            count = result[0][0]
+
+            try:
+                count = result.result_set[0][0]
+            except Exception as e:
+                logger.error("Failed to get count from ClickHouse result: %s", str(e))
+                return -1
 
             if self.verbose:
                 logger.info(f"Counted {count} rows in ClickHouse {table} table.")
@@ -229,7 +234,7 @@ class BCMDataExporter:
 
         except Exception as e:
             logger.error("Failed to count rows in ClickHouse: %s", str(e))
-            return 0
+            return -1
 
     def read_from_influx(self, start: str, stop: str) -> TableList:
         """Read from the InfluxDB.
