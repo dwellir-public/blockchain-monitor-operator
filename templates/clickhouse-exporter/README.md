@@ -157,6 +157,15 @@ SELECT COUNT(*) FROM default.block_height_requests WHERE timestamp >= '2025-02-0
 SELECT COUNT(*) FROM default.block_height_analysis_hourly WHERE hour >= '2025-02-01' AND hour < '2025-02-02';
 SELECT COUNT(*) FROM default.block_height_analysis_daily WHERE day >= '2025-02-01' AND day < '2025-02-02';
 ```
+
+Get the timestamp of the latest data in the database:
+
+```sql
+SELECT MAX(timestamp) FROM default.block_height_requests;
+SELECT MAX(hour) FROM default.block_height_analysis_hourly;
+SELECT MAX(day) FROM default.block_height_analysis_daily;
+```
+
 Get raw data for chain Ethereum mainnet during the hour 2025-02-01 00 to 01:
 
 ```sql
@@ -242,7 +251,7 @@ Get uptime for URL:s that contains the string "n.dwellir.com" during the first w
 SELECT
     chain,
     url,
-    countIfMerge(uptime_count) / countMerge(total_count) AS weekly_uptime
+    countIfMerge(uptime_count) / countMerge(total_count) AS uptime
 FROM
     block_height_analysis_daily
 WHERE
@@ -251,7 +260,9 @@ WHERE
     AND day < '2025-02-08 00:00:00'
 GROUP BY
     chain,
-    url;
+    url
+ORDER BY
+    uptime DESC;
 ```
 
 ## Known issues
