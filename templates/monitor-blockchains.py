@@ -37,6 +37,7 @@ HTTP_GET_APIS = [
     "eos",
     "eth-v1-beacon",
     "tron",
+    "movement",
 ]
 
 
@@ -397,6 +398,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["data"][0]["header"]["message"]["slot"])
         if api_class == "tron":
             return int(response["block_header"]["raw_data"]["number"])
+        if api_class == "movement":
+            return int(response["block_height"])
     except Exception as e:
         logger.error(f"{e.__class__.__name__} for api_class: [{api_class}], response: [{response}], %s", e)
         raise e
@@ -404,8 +407,17 @@ def get_highest_block(api_class: str, response: dict) -> int:
 
 
 def validate_response(response: dict) -> bool:
-    """Validate the presence of 'result' (and similar fields) in the response dict."""
-    valid_fields = ["result", "height", "number", "block", "head_block_num", "data", "block_header"]
+    """Validate the presence of select fields in the response dict."""
+    valid_fields = [
+        "result",
+        "height",
+        "number",
+        "block",
+        "head_block_num",
+        "data",
+        "block_header",
+        "block_height",
+    ]
     for field in valid_fields:
         if field in response.keys():
             return True
