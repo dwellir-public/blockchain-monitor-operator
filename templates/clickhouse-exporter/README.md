@@ -266,3 +266,40 @@ ORDER BY
 ```
 
 ## Known issues
+
+### ClickHouse container running out of disk
+
+ClickHouse has at times gotten out of hand in storing trace and text logs, filling out the disk. This is especially an issue if running ClickHouse in a limited container in AWS or similar. Check disk usage of tables with:
+
+```sql
+SELECT
+    database,
+    `table`,
+    round((sum(bytes_on_disk) / 1024) / 1024, 2) AS mb_on_disk
+FROM system.parts
+WHERE active = 1
+GROUP BY
+    database,
+    `table`
+ORDER BY mb_on_disk DESC
+LIMIT 10
+```
+
+It is completely safe to truncate these log tables, the only risk is that there is something in the logs you want to read. Note: in addition to these in-DB logs there are the system logs as well, which are more commonly used for debugging anyway.
+
+```sql
+TRUNCATE TABLE system.text_log;
+TRUNCATE TABLE system.trace_log;
+```
+
+We can also reduce the risk of these tables going crazy in disk usage by setting a tight TTL for items in the log tables:
+
+```sql
+ALTER TABLE system.text_log
+  MODIFY TTL event_time + INTERVAL 1 DAY;
+
+ALTER TABLE system.trace_log
+  MODIFY TTL event_time + INTERVAL 1 DAY;
+```
+
+Finally, an edit to the config files in `/etc/clickhouse-server/config.d/` could be an alternative if the method above doesn't do it.
