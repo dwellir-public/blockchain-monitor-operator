@@ -611,6 +611,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                         "/wallet/getnowblock",
                         "/12345678-f359-43a8-89aa-3219a362396f/wallet/getnowblock",
                     )
+                elif "movement" in url and "v1" in url:
+                    # URL like api-tron-mainnet.n.dwellir.com/wallet/getnowblock
+                    url = url.replace(
+                        "/v1",
+                        "/12345678-f359-43a8-89aa-3219a362396f/v1",
+                    )
                 else:
                     url = url + "/12345678-f359-43a8-89aa-3219a362396f"
             c.url = url
