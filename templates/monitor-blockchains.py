@@ -391,7 +391,10 @@ def get_highest_block(api_class: str, response: dict) -> int:
         if api_class == "sidecar":
             return int(response["number"])
         if api_class == "cosmos-tendermint":
-            return int(response["block"]["header"]["height"])
+            try:
+                return int(response["block"]["header"]["height"])
+            except Exception:
+                return int(response["result"]["sync_info"]["latest_block_height"])
         if api_class == "eos":
             return int(response["head_block_num"])
         if api_class == "eth-v1-beacon":
@@ -604,6 +607,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                     url = url.replace(
                         "/cosmos/base/tendermint/v1beta1/blocks/latest",
                         "/12345678-f359-43a8-89aa-3219a362396f/cosmos/base/tendermint/v1beta1/blocks/latest",
+                    )
+                elif "celestia" in url and "status" in url:
+                    # URL like api-celestia-mainnet-full.n.dwellir.com/cosmos/base/tendermint/v1beta1/blocks/latest
+                    url = url.replace(
+                        "/status",
+                        "/12345678-f359-43a8-89aa-3219a362396f/status",
                     )
                 elif "wallet/getnowblock" in url:
                     # URL like api-tron-mainnet.n.dwellir.com/wallet/getnowblock
