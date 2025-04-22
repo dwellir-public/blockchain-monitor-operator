@@ -36,8 +36,12 @@ HTTP_GET_APIS = [
     "cosmos-tendermint",
     "eos",
     "eth-v1-beacon",
-    "tron",
     "movement",
+]
+
+# APIs requiring standard POST (no JSON-RPC body)
+HTTP_POST_APIS = [
+    "tron",
 ]
 
 
@@ -634,7 +638,11 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
             if api_class in HTTP_GET_APIS:
                 c.setopt(pycurl.HTTPGET, 1)
+            elif api_class in HTTP_POST_APIS:
+                # Use standard POST (no JSON-RPC body)
+                c.setopt(pycurl.POST, 1)
             else:
+                # Use JSON-RPC POST for other non-GET/non-POST APIs
                 c.setopt(pycurl.POST, 1)
                 data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
                 c.setopt(pycurl.POSTFIELDS, data)
