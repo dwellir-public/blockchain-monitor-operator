@@ -449,11 +449,9 @@ def write_to_influxdb(url: str, token: str, org: str, bucket: str, records: list
         sys.exit(1)
 
 
-def get_handle(headers: list) -> pycurl.Curl:
+def get_handle() -> pycurl.Curl:
     """Get a Curl handle with the specified headers."""
     c = pycurl.Curl()
-    c.setopt(pycurl.HTTPHEADER, headers)
-    # c.setopt(pycurl.POST, 1)  # Moved setting of this to a per-request basis in the main loop
     c.setopt(pycurl.TIMEOUT_MS, REQUEST_TIMEOUT)  # Set a timeout for the request
     c.setopt(pycurl.NOSIGNAL, 1)  # Disable signals for multi-threaded applications
     return c
@@ -562,7 +560,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
     'return' - list of dicts
     """
     # TODO: if error 1010 pops up again, try rotating user agents per https://www.scrapehero.com/how-to-fake-and-rotate-user-agents-using-python-3/
-    headers = [
+    get_headers = [
+        "Connection: keep-alive",
+        "Keep-Alive: timeout=4, max=10",
+        "User-Agent: Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:109.0) Gecko/20100101 Firefox/118.0",
+    ]
+    post_headers = [
         "Connection: keep-alive",
         "Keep-Alive: timeout=4, max=10",
         "Content-Type: application/json",
@@ -574,7 +577,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
     num_requests = len(queue)
     num_conn = min(num_connections, num_requests)
     for _ in range(0, num_conn):
-        cm.handles.append(get_handle(headers))
+        cm.handles.append(get_handle())
     # Main loop
     freelist = cm.handles[:]
     num_processed = 0
@@ -633,8 +636,10 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
             c.response_buffer = BytesIO()
             c.setopt(pycurl.WRITEDATA, c.response_buffer)
             if api_class in HTTP_GET_APIS:
+                c.setopt(pycurl.HTTPHEADER, get_headers)
                 c.setopt(pycurl.HTTPGET, 1)
             else:
+                c.setopt(pycurl.HTTPHEADER, post_headers)
                 c.setopt(pycurl.POST, 1)
                 data = json.dumps({"method": get_json_rpc_method(api_class), "params": [], "id": 1, "jsonrpc": "2.0"})
                 c.setopt(pycurl.POSTFIELDS, data)
