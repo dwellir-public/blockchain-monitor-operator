@@ -601,7 +601,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                     url = url.replace("/blocks/height", "/12345678-f359-43a8-89aa-3219a362396f/blocks/height")
                 elif "ton" in url:
                     # URL like api-ton-mainnet-archive.n.dwellir.com/jsonRPC
-                    url = url.replace("/jsonRPC", "/12345678-f359-43a8-89aa-3219a362396f/jsonRPC")
+                    url = url.replace("/v2/jsonRPC", "/12345678-f359-43a8-89aa-3219a362396f/v2/jsonRPC")
                 elif "sidecar" in url:
                     # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
                     url = url.replace("/blocks/head/header", "/12345678-f359-43a8-89aa-3219a362396f/blocks/head/header")
