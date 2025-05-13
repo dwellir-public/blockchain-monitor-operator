@@ -38,6 +38,7 @@ HTTP_GET_APIS = [
     "eth-v1-beacon",
     "tron",
     "movement",
+    "tonv3",
 ]
 
 
@@ -388,6 +389,8 @@ def get_highest_block(api_class: str, response: dict) -> int:
             return int(response["height"])
         if api_class == "ton":
             return int(response["result"]["last"]["seqno"])
+        if api_class == "tonv3":
+            return int(response["last"]["seqno"])
         if api_class == "sidecar":
             return int(response["number"])
         if api_class == "cosmos-tendermint":
@@ -420,6 +423,7 @@ def validate_response(response: dict) -> bool:
         "data",
         "block_header",
         "block_height",
+        "last",
     ]
     for field in valid_fields:
         if field in response.keys():
@@ -599,9 +603,12 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                 elif "waves" in url:
                     # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
                     url = url.replace("/blocks/height", "/12345678-f359-43a8-89aa-3219a362396f/blocks/height")
-                elif "ton" in url:
-                    # URL like api-ton-mainnet-archive.n.dwellir.com/jsonRPC
+                elif "ton" == api_class:
+                    # URL like api-ton-mainnet-archive.n.dwellir.com/api/v2/jsonRPC
                     url = url.replace("/api/v2/jsonRPC", "/12345678-f359-43a8-89aa-3219a362396f/api/v2/jsonRPC")
+                elif "tonv3" == api_class:
+                    # URL like api-ton-mainnet-archive.n.dwellir.com/api/v3/masterchainInfo
+                    url = url.replace("/api/v3/masterchainInfo", "/12345678-f359-43a8-89aa-3219a362396f/api/v3/masterchainInfo")
                 elif "sidecar" in url:
                     # URL like api-polkadot-sidecar.dwellir.com/blocks/head/header
                     url = url.replace("/blocks/head/header", "/12345678-f359-43a8-89aa-3219a362396f/blocks/head/header")
@@ -624,7 +631,7 @@ def fetch_results_pycurl(endpoints: list, num_connections: int = 4) -> list:
                         "/12345678-f359-43a8-89aa-3219a362396f/wallet/getnowblock",
                     )
                 elif "movement" in api_class and "v1" in url:
-                    # URL like api-tron-mainnet.n.dwellir.com/wallet/getnowblock
+                    # URL like api-movement-mainnet.n.dwellir.com/v1
                     url = url.replace(
                         "/v1",
                         "/12345678-f359-43a8-89aa-3219a362396f/v1",
