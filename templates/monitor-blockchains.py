@@ -26,8 +26,8 @@ from influxdb_client.client.write_api import SYNCHRONOUS
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger()
 
-REQUEST_TIMEOUT = 3000
-WS_TIMEOUT = 2.75
+REQUEST_TIMEOUT = 4000
+WS_TIMEOUT = 3.5
 
 
 HTTP_GET_APIS = [
